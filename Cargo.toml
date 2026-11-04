@@ -1,0 +1,25 @@
+[workspace]
+resolver = "3"
+members = ["crates/avrox", "crates/avrox-cli"]
+
+[workspace.package]
+version = "0.1.0"
+authors = ["Konstantin Alexandroff <k.alexandroff@gmail.com>"]
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/Kostassoid/avrox"
+
+[workspace.dependencies]
+avrox = { path = "crates/avrox", version = "0.1.0" }
+anyhow = "1"
+clap = { version = "4.5", features = ["derive"] }
+thiserror = "2"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
