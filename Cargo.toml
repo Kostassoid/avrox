@@ -29,3 +29,18 @@ missing_docs = "warn"
 all = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
 module_name_repetitions = "allow"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
+
+# cargo-release configuration: version all crates in lockstep and cut a
+# single release for the workspace with a "v{version}" tag (the tag format
+# 'dist' expects for a unified announcement).
+# See https://github.com/crate-ci/cargo-release
+[workspace.metadata.release]
+shared-version = true
+tag-name = "v{{version}}"
+# Releases go to GitHub Releases only, not crates.io.
+publish = false

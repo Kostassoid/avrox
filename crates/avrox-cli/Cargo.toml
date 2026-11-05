@@ -16,3 +16,12 @@ clap.workspace = true
 
 [lints]
 workspace = true
+
+# cargo-release configuration for this package. The changelog replacement is
+# scoped here (relative to this package, running exactly once per release)
+# because a workspace-level replacement would run for every package.
+[[package.metadata.release.pre-release-replacements]]
+file = "../../CHANGELOG.md"
+search = "## \\[Unreleased\\]"
+replace = "## [Unreleased]\n\n## [{{version}}] - {{date}}"
+exactly = 1

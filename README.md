@@ -93,6 +93,25 @@ cargo clippy --workspace --all-targets
 cargo fmt --all --check
 ```
 
+## Releasing
+
+Releases are built by [dist](https://axodotdev.github.io/cargo-dist), cut
+with [cargo-release](https://github.com/crate-ci/cargo-release) and use
+[git-cliff](https://git-cliff.org) for changelog capture. Prerequisites:
+`cargo install cargo-release` and `git-cliff` on your `PATH`.
+
+1. Keep the `## [Unreleased]` section of `CHANGELOG.md` up to date: write
+   notes by hand, or run `just changelog` to print the commits since the
+   last tag and paste in what you want to include.
+2. Run `just release 1.1.0` — a dry run; add `--execute` to actually do it.
+   This bumps all workspace versions in lockstep, rotates the `Unreleased`
+   section into `## [1.1.0] - <date>`, commits, creates the `v1.1.0` tag and
+   pushes it.
+3. Pushing the tag triggers `.github/workflows/release.yml`, which builds
+   `avrox-cli` for Windows (x86_64), Linux (x86_64 and aarch64) and macOS
+   (aarch64), creates the GitHub Release with the matching changelog entry
+   as its notes, and uploads the archives with SHA-256 checksums.
+
 Testing uses three layers:
 
 - unit tests for the parser, naming and generator internals;

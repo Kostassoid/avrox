@@ -32,6 +32,17 @@ bless:
 run +ARGS:
     cargo run -p avrox-cli -- "$@"
 
+# Print unreleased changes (commits since the last tag) to paste into
+# CHANGELOG.md's "Unreleased" section.
+changelog:
+    git-cliff --config cliff.toml --unreleased
+
+# Cut a release: bump all versions, rotate the changelog, tag and push.
+# Pass a version (e.g. `just release 1.1.0`); add `--execute` to perform it
+# (without it cargo-release runs as a dry run).
+release +ARGS:
+    cargo release "$@"
+
 # Run the same checks as CI.
 ci: fmt clippy build test
 
