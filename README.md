@@ -25,22 +25,34 @@ cargo run -p avrox-cli -- --help
 ```
 
 Options include `--language` (currently `rust`), `--avro-version`
-(`1.10`, `1.11` or `1.12`, the default), `--layout` and `--types`:
+(`1.10`, `1.11` or `1.12`, the default), `--layout`, `--rust-types` and
+`--rust-time`:
 
 - `--layout single` (default): everything in one file, named after the root
   type of the schema;
 - `--layout module`: one file per named type plus a `mod.rs` declaring and
   re-exporting them; generated union enums live in `mod.rs`. The result can
   be used as a Rust module directory as is.
-- `--types avro` (default): generated types rely on the official
+- `--rust-types avro` (default): generated types rely on the official
   [`apache-avro`](https://docs.rs/apache-avro) crate — `bytes`/`fixed` use
   `serde_bytes`, and the `uuid`/`decimal`/`duration` logical types become
   `apache_avro::Uuid`/`Decimal`/`Duration`;
-- `--types std`: only standard library types plus types generated into the
-  output (a `Bytes` newtype and one newtype per `fixed` type, with `serde`
+- `--rust-types std`: only standard library types plus types generated into
+  the output (a `Bytes` newtype and one newtype per `fixed` type, with `serde`
   implementations that serialize as Avro bytes). Logical types keep their
   underlying primitives. The generated code needs only `serde` to compile
   and still round-trips through `apache-avro`.
+- `--rust-time primitives` (default): time-related logical types (`date`,
+  `time-*`, `timestamp-*`, `local-timestamp-*`) keep their underlying
+  integers (`i32`/`i64`), documented on the fields carrying them;
+- `--rust-time std-time`: timestamps become newtypes wrapping
+  `std::time::SystemTime` and times-of-day newtypes wrapping
+  `std::time::Duration`; `date` has no standard library representation and
+  stays an `i32`. Needs no extra dependencies;
+- `--rust-time chrono`: newtypes wrapping `chrono::NaiveDate`,
+  `chrono::NaiveTime`, `chrono::DateTime<Utc>` and `chrono::NaiveDateTime`,
+  with `serde` implementations that encode them as the Avro integers of their
+  logical types. The consuming crate needs `chrono` 0.4.40 or later.
 
 From Rust:
 
@@ -57,8 +69,9 @@ crate through `serde`:
 - nullable unions (`["null", T]`) become `Option<T>`, other unions become
   generated enums with one newtype variant per branch, in branch order;
 - recursive references in directly nested positions are boxed;
-- logical types are documented on the fields and types carrying them;
-- `bytes` and `fixed` representations depend on the `--types` mode (see
+- logical types are documented on the fields and types carrying them, and
+  time-related ones follow the `--rust-time` setting (see above);
+- `bytes` and `fixed` representations depend on the `--rust-types` mode (see
   above): `serde_bytes` types in `avro` mode, generated newtypes with
   byte-oriented `serde` implementations in `std` mode.
 

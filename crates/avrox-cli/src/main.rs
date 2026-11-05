@@ -3,7 +3,7 @@
 use std::{fs, path::PathBuf};
 
 use anyhow::{Context, Result};
-use avrox::{AvroVersion, Language, Layout, RustOptions, RustTypes, Settings};
+use avrox::{AvroVersion, Language, Layout, RustOptions, RustTime, RustTypes, Settings};
 use clap::{Parser, ValueEnum};
 
 /// Generates code from Avro schemas.
@@ -27,7 +27,11 @@ struct Cli {
 
     /// Which types the generated Rust code uses.
     #[arg(long, value_enum, default_value = "avro")]
-    types: TypesArg,
+    rust_types: TypesArg,
+
+    /// How time-related logical types are represented in Rust.
+    #[arg(long, value_enum, default_value = "primitives")]
+    rust_time: TimeArg,
 
     /// Directory to write generated files into instead of printing them to
     /// stdout.
@@ -81,6 +85,23 @@ impl From<TypesArg> for RustTypes {
 }
 
 #[derive(Clone, Debug, ValueEnum)]
+enum TimeArg {
+    Primitives,
+    StdTime,
+    Chrono,
+}
+
+impl From<TimeArg> for RustTime {
+    fn from(value: TimeArg) -> Self {
+        match value {
+            TimeArg::Primitives => Self::Primitives,
+            TimeArg::StdTime => Self::StdTime,
+            TimeArg::Chrono => Self::Chrono,
+        }
+    }
+}
+
+#[derive(Clone, Debug, ValueEnum)]
 enum VersionArg {
     #[value(name = "1.10")]
     V1_10,
@@ -113,7 +134,8 @@ fn run(cli: &Cli) -> Result<()> {
         avro_version: cli.avro_version.clone().into(),
         layout: cli.layout.clone().into(),
         rust: RustOptions {
-            types: cli.types.clone().into(),
+            types: cli.rust_types.clone().into(),
+            time: cli.rust_time.clone().into(),
         },
     };
     let files = avrox::generate(&schema, &settings)

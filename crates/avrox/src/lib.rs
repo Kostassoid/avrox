@@ -15,6 +15,10 @@
 //! [`RustTypes::Std`] uses only standard library types plus types generated
 //! into the output. Both round-trip through `apache-avro`'s binary codec.
 //!
+//! [`RustTime`] controls how time-related logical types are represented:
+//! underlying integers (the default), [`std::time`] newtypes or `chrono`
+//! newtypes.
+//!
 //! # Example
 //!
 //! ```
@@ -67,19 +71,42 @@ impl Default for Settings {
 }
 
 /// Options for Rust code generation.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RustOptions {
     /// Which types the generated code uses.
     pub types: RustTypes,
+    /// How time-related logical types are represented.
+    pub time: RustTime,
 }
 
 impl Default for RustOptions {
-    /// Defaults to [`RustTypes::ApacheAvro`].
+    /// Defaults to [`RustTypes::ApacheAvro`] and [`RustTime::Primitives`].
     fn default() -> Self {
         Self {
             types: RustTypes::ApacheAvro,
+            time: RustTime::Primitives,
         }
     }
+}
+
+/// How time-related logical types (`date`, `time-*`, `timestamp-*` and
+/// `local-timestamp-*`) are represented in generated Rust code.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum RustTime {
+    /// Their underlying integer types (`i32`/`i64`), documented on the fields
+    /// carrying them. This is the default and needs no extra dependencies.
+    Primitives,
+    /// [`std::time`]: timestamps become newtypes wrapping
+    /// [`std::time::SystemTime`] and times-of-day newtypes wrapping
+    /// [`std::time::Duration`]. `date` has no standard library
+    /// representation and stays an `i32`. Needs no extra dependencies.
+    StdTime,
+    /// [`chrono`]: newtypes wrapping [`chrono::NaiveDate`],
+    /// [`chrono::NaiveTime`], [`chrono::DateTime`] and
+    /// [`chrono::NaiveDateTime`]. The consuming crate needs `chrono` 0.4.32
+    /// or later.
+    Chrono,
 }
 
 /// Which types the generated Rust code uses.
