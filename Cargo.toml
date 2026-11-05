@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/avrox", "crates/avrox-cli"]
 
 [workspace.package]
-version = "1.0.1"
+version = "1.1.0"
 authors = ["Konstantin Alexandroff <k.alexandroff@gmail.com>"]
 edition = "2024"
 rust-version = "1.91"
@@ -11,7 +11,7 @@ license = "MIT"
 repository = "https://github.com/Kostassoid/avrox"
 
 [workspace.dependencies]
-avrox = { path = "crates/avrox", version = "1.0.1" }
+avrox = { path = "crates/avrox", version = "1.1.0" }
 anyhow = "1"
 clap = { version = "4.5", features = ["derive"] }
 prettyplease = "0.2"
