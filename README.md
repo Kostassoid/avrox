@@ -20,11 +20,18 @@ language.
 ```sh
 cargo run -p avrox-cli -- path/to/schema.avsc            # print to stdout
 cargo run -p avrox-cli -- path/to/schema.avsc -o src/gen # write files
+cargo run -p avrox-cli -- path/to/schema.avsc --layout module -o src/gen
 cargo run -p avrox-cli -- --help
 ```
 
-Options include `--language` (currently `rust`) and `--avro-version`
-(`1.10`, `1.11` or `1.12`, the default).
+Options include `--language` (currently `rust`), `--avro-version`
+(`1.10`, `1.11` or `1.12`, the default) and `--layout`:
+
+- `single` (default): everything in one file, named after the root type of
+  the schema;
+- `module`: one file per named type plus a `mod.rs` declaring and
+  re-exporting them; generated union enums live in `mod.rs`. The result can
+  be used as a Rust module directory as is.
 
 From Rust:
 

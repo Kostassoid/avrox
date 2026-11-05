@@ -45,14 +45,18 @@ pub struct Settings {
     pub language: Language,
     /// Avro specification version the schema is written against.
     pub avro_version: AvroVersion,
+    /// How the generated code is split into files.
+    pub layout: Layout,
 }
 
 impl Default for Settings {
-    /// Defaults to Rust and the latest supported Avro version.
+    /// Defaults to Rust, the latest supported Avro version and a single
+    /// output file.
     fn default() -> Self {
         Self {
             language: Language::Rust,
             avro_version: AvroVersion::V1_12,
+            layout: Layout::SingleFile,
         }
     }
 }
@@ -63,6 +67,18 @@ impl Default for Settings {
 pub enum Language {
     /// Rust, integrating with `serde` and the `apache-avro` crate.
     Rust,
+}
+
+/// How generated code is split into files.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum Layout {
+    /// Everything in a single file, named after the root type of the schema.
+    SingleFile,
+    /// One file per named type, plus a `mod.rs` that declares them, re-exports
+    /// them and holds the generated union enums. For Rust the result can be
+    /// used as a module directory directly.
+    Module,
 }
 
 /// Avro specification version a schema is written against.

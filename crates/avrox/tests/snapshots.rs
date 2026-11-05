@@ -4,7 +4,8 @@
 //! test case containing:
 //!
 //! - `schema.avsc`: the Avro schema to generate code from,
-//! - `settings.json` (optional): `language` and `avro_version` overrides,
+//! - `settings.json` (optional): `language`, `avro_version` and `layout`
+//!   overrides,
 //! - `expected/`: the expected generated files, or `error.txt`: the expected
 //!   error message.
 //!
@@ -15,7 +16,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use avrox::{AvroVersion, Language, Settings};
+use avrox::{AvroVersion, Language, Layout, Settings};
 
 fn cases_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -176,6 +177,13 @@ fn read_settings(case: &Path) -> Result<Settings, String> {
             "1.11" => AvroVersion::V1_11,
             "1.12" => AvroVersion::V1_12,
             other => return Err(format!("unsupported avro version `{other}`")),
+        };
+    }
+    if let Some(layout) = value.get("layout").and_then(serde_json::Value::as_str) {
+        settings.layout = match layout {
+            "single" => Layout::SingleFile,
+            "module" => Layout::Module,
+            other => return Err(format!("unsupported layout `{other}`")),
         };
     }
     Ok(settings)

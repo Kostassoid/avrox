@@ -3,7 +3,7 @@
 use std::{fs, path::PathBuf};
 
 use anyhow::{Context, Result};
-use avrox::{AvroVersion, Language, Settings};
+use avrox::{AvroVersion, Language, Layout, Settings};
 use clap::{Parser, ValueEnum};
 
 /// Generates code from Avro schemas.
@@ -21,6 +21,10 @@ struct Cli {
     #[arg(long, value_enum, default_value = "1.12")]
     avro_version: VersionArg,
 
+    /// How the generated code is split into files.
+    #[arg(long, value_enum, default_value = "single")]
+    layout: LayoutArg,
+
     /// Directory to write generated files into instead of printing them to
     /// stdout.
     #[arg(short, long)]
@@ -37,6 +41,21 @@ impl From<LanguageArg> for Language {
     fn from(value: LanguageArg) -> Self {
         match value {
             LanguageArg::Rust => Self::Rust,
+        }
+    }
+}
+
+#[derive(Clone, Debug, ValueEnum)]
+enum LayoutArg {
+    Single,
+    Module,
+}
+
+impl From<LayoutArg> for Layout {
+    fn from(value: LayoutArg) -> Self {
+        match value {
+            LayoutArg::Single => Self::SingleFile,
+            LayoutArg::Module => Self::Module,
         }
     }
 }
@@ -72,6 +91,7 @@ fn run(cli: &Cli) -> Result<()> {
     let settings = Settings {
         language: cli.language.clone().into(),
         avro_version: cli.avro_version.clone().into(),
+        layout: cli.layout.clone().into(),
     };
     let files = avrox::generate(&schema, &settings)
         .with_context(|| format!("failed to generate code from `{}`", cli.input.display()))?;

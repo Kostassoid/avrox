@@ -1,0 +1,100 @@
+{
+    "type": "record",
+    "name": "Order",
+    "namespace": "com.example",
+    "doc": "An order.",
+    "fields": [
+        {
+            "name": "id",
+            "type": "long"
+        },
+        {
+            "name": "customer",
+            "type": {
+                "type": "record",
+                "name": "Customer",
+                "doc": "The customer placing the order.",
+                "fields": [
+                    {
+                        "name": "name",
+                        "type": "string"
+                    },
+                    {
+                        "name": "email",
+                        "type": ["null", "string"]
+                    }
+                ]
+            }
+        },
+        {
+            "name": "status",
+            "type": {
+                "type": "enum",
+                "name": "Status",
+                "symbols": ["NEW", "PAID", "SHIPPED"],
+                "default": "NEW"
+            }
+        },
+        {
+            "name": "payment",
+            "type": [
+                "null",
+                {
+                    "type": "record",
+                    "name": "CardPayment",
+                    "fields": [
+                        {
+                            "name": "last4",
+                            "type": "string"
+                        }
+                    ]
+                },
+                {
+                    "type": "record",
+                    "name": "CashPayment",
+                    "fields": []
+                },
+                "string"
+            ]
+        },
+        {
+            "name": "items",
+            "type": {
+                "type": "array",
+                "items": {
+                    "type": "record",
+                    "name": "Item",
+                    "fields": [
+                        {
+                            "name": "sku",
+                            "type": {
+                                "type": "fixed",
+                                "name": "Sku",
+                                "size": 8
+                            }
+                        },
+                        {
+                            "name": "quantity",
+                            "type": "int"
+                        },
+                        {
+                            "name": "tags",
+                            "type": {
+                                "type": "map",
+                                "values": "string"
+                            }
+                        },
+                        {
+                            "name": "weight",
+                            "type": "bytes"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "name": "notes",
+            "type": ["null", "string"]
+        }
+    ]
+}
