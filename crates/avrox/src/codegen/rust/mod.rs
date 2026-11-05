@@ -811,8 +811,11 @@ mod tests {
 
     #[test]
     fn generates_nothing_for_unnamed_primitive_roots() {
-        assert!(generate_ok(r#""int""#).is_empty());
-        assert!(generate_ok(r#"{"type": "array", "items": "long"}"#).is_empty());
+        assert_eq!(generate_ok(r#""int""#), [] as [GeneratedFile; 0]);
+        assert_eq!(
+            generate_ok(r#"{"type": "array", "items": "long"}"#),
+            [] as [GeneratedFile; 0]
+        );
     }
 
     #[test]
