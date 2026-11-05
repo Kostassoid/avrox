@@ -6,12 +6,14 @@
 //!
 //! Generated Rust code integrates with the
 //! [`apache-avro`](https://docs.rs/apache-avro) crate through `serde`
-//! derives: records become structs, enums become enums, fixed types become
-//! `serde_bytes::ByteArray` aliases, `bytes` becomes `serde_bytes::ByteBuf`,
-//! nullable unions become `Option`s and other unions become generated enums.
-//! Logical types are represented by their underlying primitive types and
-//! documented accordingly. The consuming crate needs `serde` (with `derive`)
-//! and `serde_bytes` as dependencies.
+//! derives: records become structs, enums become enums, nullable unions
+//! become `Option`s and other unions become generated enums. Logical types
+//! are documented on the fields and types carrying them.
+//!
+//! [`RustTypes`] controls which types the output uses: [`RustTypes::ApacheAvro`]
+//! (the default) relies on `apache-avro` and `serde_bytes` types, while
+//! [`RustTypes::Std`] uses only standard library types plus types generated
+//! into the output. Both round-trip through `apache-avro`'s binary codec.
 //!
 //! # Example
 //!
@@ -47,18 +49,56 @@ pub struct Settings {
     pub avro_version: AvroVersion,
     /// How the generated code is split into files.
     pub layout: Layout,
+    /// Options for Rust code generation.
+    pub rust: RustOptions,
 }
 
 impl Default for Settings {
-    /// Defaults to Rust, the latest supported Avro version and a single
-    /// output file.
+    /// Defaults to Rust, the latest supported Avro version, a single output
+    /// file and [`RustTypes::ApacheAvro`].
     fn default() -> Self {
         Self {
             language: Language::Rust,
             avro_version: AvroVersion::V1_12,
             layout: Layout::SingleFile,
+            rust: RustOptions::default(),
         }
     }
+}
+
+/// Options for Rust code generation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RustOptions {
+    /// Which types the generated code uses.
+    pub types: RustTypes,
+}
+
+impl Default for RustOptions {
+    /// Defaults to [`RustTypes::ApacheAvro`].
+    fn default() -> Self {
+        Self {
+            types: RustTypes::ApacheAvro,
+        }
+    }
+}
+
+/// Which types the generated Rust code uses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum RustTypes {
+    /// Relies on types from the official `apache-avro` crate: `bytes` and
+    /// `fixed` use `serde_bytes`, and the `uuid`, `decimal` and `duration`
+    /// logical types become `apache_avro::Uuid`, `apache_avro::Decimal` and
+    /// `apache_avro::Duration`. The generated code requires `apache-avro`,
+    /// `serde` and `serde_bytes` to compile.
+    ApacheAvro,
+    /// Uses only standard library types plus types generated into the output
+    /// (a `Bytes` newtype and one newtype per `fixed` type, with `serde`
+    /// implementations that serialize as Avro bytes). The generated code
+    /// requires only `serde` to compile and still round-trips through
+    /// `apache-avro`'s binary codec. Logical types keep their underlying
+    /// primitive representations.
+    Std,
 }
 
 /// Target language for generated code.

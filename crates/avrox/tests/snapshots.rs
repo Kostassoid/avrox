@@ -4,8 +4,8 @@
 //! test case containing:
 //!
 //! - `schema.avsc`: the Avro schema to generate code from,
-//! - `settings.json` (optional): `language`, `avro_version` and `layout`
-//!   overrides,
+//! - `settings.json` (optional): `language`, `avro_version`, `layout` and
+//!   `rust.types` overrides,
 //! - `expected/`: the expected generated files, or `error.txt`: the expected
 //!   error message.
 //!
@@ -16,7 +16,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use avrox::{AvroVersion, Language, Layout, Settings};
+use avrox::{AvroVersion, Language, Layout, RustOptions, RustTypes, Settings};
 
 fn cases_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -185,6 +185,17 @@ fn read_settings(case: &Path) -> Result<Settings, String> {
             "module" => Layout::Module,
             other => return Err(format!("unsupported layout `{other}`")),
         };
+    }
+    if let Some(rust) = value.get("rust") {
+        if let Some(types) = rust.get("types").and_then(serde_json::Value::as_str) {
+            settings.rust = RustOptions {
+                types: match types {
+                    "avro" => RustTypes::ApacheAvro,
+                    "std" => RustTypes::Std,
+                    other => return Err(format!("unsupported rust types `{other}`")),
+                },
+            };
+        }
     }
     Ok(settings)
 }

@@ -25,13 +25,22 @@ cargo run -p avrox-cli -- --help
 ```
 
 Options include `--language` (currently `rust`), `--avro-version`
-(`1.10`, `1.11` or `1.12`, the default) and `--layout`:
+(`1.10`, `1.11` or `1.12`, the default), `--layout` and `--types`:
 
-- `single` (default): everything in one file, named after the root type of
-  the schema;
-- `module`: one file per named type plus a `mod.rs` declaring and
+- `--layout single` (default): everything in one file, named after the root
+  type of the schema;
+- `--layout module`: one file per named type plus a `mod.rs` declaring and
   re-exporting them; generated union enums live in `mod.rs`. The result can
   be used as a Rust module directory as is.
+- `--types avro` (default): generated types rely on the official
+  [`apache-avro`](https://docs.rs/apache-avro) crate — `bytes`/`fixed` use
+  `serde_bytes`, and the `uuid`/`decimal`/`duration` logical types become
+  `apache_avro::Uuid`/`Decimal`/`Duration`;
+- `--types std`: only standard library types plus types generated into the
+  output (a `Bytes` newtype and one newtype per `fixed` type, with `serde`
+  implementations that serialize as Avro bytes). Logical types keep their
+  underlying primitives. The generated code needs only `serde` to compile
+  and still round-trips through `apache-avro`.
 
 From Rust:
 
@@ -44,19 +53,24 @@ let files = avrox::generate(schema_json, &avrox::Settings::default())?;
 The generated code integrates with the [`apache-avro`](https://docs.rs/apache-avro)
 crate through `serde`:
 
-- records become structs, enums become enums, `fixed` become
-  `serde_bytes::ByteArray` aliases and `bytes` becomes `serde_bytes::ByteBuf`;
+- records become structs, enums become enums;
 - nullable unions (`["null", T]`) become `Option<T>`, other unions become
   generated enums with one newtype variant per branch, in branch order;
 - recursive references in directly nested positions are boxed;
-- logical types keep their underlying primitive representation and are
-  documented on the fields and aliases carrying them.
+- logical types are documented on the fields and types carrying them;
+- `bytes` and `fixed` representations depend on the `--types` mode (see
+  above): `serde_bytes` types in `avro` mode, generated newtypes with
+  byte-oriented `serde` implementations in `std` mode.
 
-The consuming crate needs `serde` (with `derive`) and `serde_bytes` as
-dependencies, and `apache-avro` to (de)serialize.
+Both modes round-trip through `apache-avro`'s binary codec; `std` mode
+requires only `serde` (with `derive`) as a direct dependency, `avro` mode
+requires `serde`, `serde_bytes` and `apache-avro`.
 
 Known limitations: schemas whose types map to colliding Rust names across
-namespaces are rejected, and Avro protocols (`.avpr`) are not supported.
+namespaces are rejected, Avro protocols (`.avpr`) are not supported, and
+uuid logical types on `string` stay `String` in `avro` mode because
+`apache_avro::Uuid` serializes as bytes in binary mode, which a string-based
+uuid schema rejects.
 
 ## Development
 

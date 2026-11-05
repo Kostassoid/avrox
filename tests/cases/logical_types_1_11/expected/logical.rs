@@ -34,12 +34,12 @@ pub struct Logical {
     pub uuid_bytes: UuidBytes,
     /// Logical type `decimal`: arbitrary-precision signed decimal (precision 4, scale 2).
     #[serde(rename = "decimalBytes")]
-    pub decimal_bytes: ByteBuf,
+    pub decimal_bytes: apache_avro::Decimal,
     #[serde(rename = "decimalFixed")]
-    pub decimal_fixed: DecimalFixed,
+    pub decimal_fixed: apache_avro::Decimal,
     #[serde(rename = "bigDecimal")]
     pub big_decimal: ByteBuf,
-    pub duration: Duration,
+    pub duration: apache_avro::Duration,
     #[serde(rename = "unknownLogical")]
     pub unknown_logical: i32,
 }

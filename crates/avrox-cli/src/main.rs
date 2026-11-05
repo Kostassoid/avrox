@@ -3,7 +3,7 @@
 use std::{fs, path::PathBuf};
 
 use anyhow::{Context, Result};
-use avrox::{AvroVersion, Language, Layout, Settings};
+use avrox::{AvroVersion, Language, Layout, RustOptions, RustTypes, Settings};
 use clap::{Parser, ValueEnum};
 
 /// Generates code from Avro schemas.
@@ -24,6 +24,10 @@ struct Cli {
     /// How the generated code is split into files.
     #[arg(long, value_enum, default_value = "single")]
     layout: LayoutArg,
+
+    /// Which types the generated Rust code uses.
+    #[arg(long, value_enum, default_value = "avro")]
+    types: TypesArg,
 
     /// Directory to write generated files into instead of printing them to
     /// stdout.
@@ -61,6 +65,22 @@ impl From<LayoutArg> for Layout {
 }
 
 #[derive(Clone, Debug, ValueEnum)]
+enum TypesArg {
+    #[value(name = "avro")]
+    ApacheAvro,
+    Std,
+}
+
+impl From<TypesArg> for RustTypes {
+    fn from(value: TypesArg) -> Self {
+        match value {
+            TypesArg::ApacheAvro => Self::ApacheAvro,
+            TypesArg::Std => Self::Std,
+        }
+    }
+}
+
+#[derive(Clone, Debug, ValueEnum)]
 enum VersionArg {
     #[value(name = "1.10")]
     V1_10,
@@ -92,6 +112,9 @@ fn run(cli: &Cli) -> Result<()> {
         language: cli.language.clone().into(),
         avro_version: cli.avro_version.clone().into(),
         layout: cli.layout.clone().into(),
+        rust: RustOptions {
+            types: cli.types.clone().into(),
+        },
     };
     let files = avrox::generate(&schema, &settings)
         .with_context(|| format!("failed to generate code from `{}`", cli.input.display()))?;

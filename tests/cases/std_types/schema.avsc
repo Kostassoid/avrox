@@ -1,0 +1,90 @@
+{
+    "type": "record",
+    "name": "StdTypes",
+    "doc": "All the representations of `RustTypes::Std`.",
+    "fields": [
+        {
+            "name": "payload",
+            "type": "bytes"
+        },
+        {
+            "name": "digest",
+            "type": {
+                "type": "fixed",
+                "name": "Digest",
+                "size": 4,
+                "doc": "A checksum."
+            }
+        },
+        {
+            "name": "either",
+            "type": ["bytes", "long"]
+        },
+        {
+            "name": "uuidString",
+            "type": {
+                "type": "string",
+                "logicalType": "uuid"
+            }
+        },
+        {
+            "name": "uuidFixed",
+            "type": {
+                "type": "fixed",
+                "name": "UuidFixed",
+                "size": 16,
+                "logicalType": "uuid"
+            }
+        },
+        {
+            "name": "decimal",
+            "type": {
+                "type": "bytes",
+                "logicalType": "decimal",
+                "precision": 4,
+                "scale": 2
+            }
+        },
+        {
+            "name": "decimalFixed",
+            "type": {
+                "type": "fixed",
+                "name": "DecimalFixed",
+                "size": 8,
+                "logicalType": "decimal",
+                "precision": 18,
+                "scale": 6
+            }
+        },
+        {
+            "name": "bigDecimal",
+            "type": {
+                "type": "bytes",
+                "logicalType": "big-decimal"
+            }
+        },
+        {
+            "name": "duration",
+            "type": {
+                "type": "fixed",
+                "name": "Duration",
+                "size": 12,
+                "logicalType": "duration"
+            }
+        },
+        {
+            "name": "date",
+            "type": {
+                "type": "int",
+                "logicalType": "date"
+            }
+        },
+        {
+            "name": "timestamp",
+            "type": {
+                "type": "long",
+                "logicalType": "timestamp-micros"
+            }
+        }
+    ]
+}
