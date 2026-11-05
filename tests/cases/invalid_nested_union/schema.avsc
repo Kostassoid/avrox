@@ -1,0 +1,10 @@
+{
+    "type": "record",
+    "name": "R",
+    "fields": [
+        {
+            "name": "x",
+            "type": ["null", ["int", "string"]]
+        }
+    ]
+}

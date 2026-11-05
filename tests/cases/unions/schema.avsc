@@ -1,0 +1,66 @@
+{
+    "type": "record",
+    "name": "Unions",
+    "namespace": "com.example",
+    "doc": "All the ways unions are rendered.",
+    "fields": [
+        {
+            "name": "optional",
+            "type": ["null", "string"],
+            "doc": "A nullable union becomes an Option."
+        },
+        {
+            "name": "reversedNullable",
+            "type": ["string", "null"],
+            "doc": "The null branch may come last."
+        },
+        {
+            "name": "single",
+            "type": ["double"]
+        },
+        {
+            "name": "first",
+            "type": ["int", "string"],
+            "doc": "A shared union enum."
+        },
+        {
+            "name": "second",
+            "type": ["int", "string"],
+            "doc": "Equal unions are deduplicated."
+        },
+        {
+            "name": "shape",
+            "type": [
+                "null",
+                {
+                    "type": "record",
+                    "name": "Circle",
+                    "fields": [
+                        {
+                            "name": "radius",
+                            "type": "double"
+                        }
+                    ]
+                },
+                {
+                    "type": "record",
+                    "name": "Square",
+                    "fields": [
+                        {
+                            "name": "side",
+                            "type": "double"
+                        }
+                    ]
+                },
+                "string"
+            ]
+        },
+        {
+            "name": "matrix",
+            "type": {
+                "type": "array",
+                "items": ["null", "long"]
+            }
+        }
+    ]
+}

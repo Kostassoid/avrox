@@ -1,0 +1,49 @@
+{
+    "type": "record",
+    "name": "Outer",
+    "namespace": "com.example",
+    "doc": "Outer record.",
+    "fields": [
+        {
+            "name": "inner",
+            "type": {
+                "type": "record",
+                "name": "Inner",
+                "doc": "Inner record, inheriting the enclosing namespace.",
+                "fields": [
+                    {
+                        "name": "value",
+                        "type": "int"
+                    },
+                    {
+                        "name": "label",
+                        "type": "string"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "amount",
+            "type": {
+                "type": "record",
+                "name": "com.example.other.Amount",
+                "namespace": "ignored",
+                "doc": "A fullname in the name attribute ignores the namespace attribute.",
+                "fields": [
+                    {
+                        "name": "currency",
+                        "type": "string"
+                    },
+                    {
+                        "name": "units",
+                        "type": "long"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "otherAmount",
+            "type": "com.example.other.Amount"
+        }
+    ]
+}

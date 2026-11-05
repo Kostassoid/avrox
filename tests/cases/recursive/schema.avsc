@@ -1,0 +1,85 @@
+{
+    "type": "record",
+    "name": "Recursive",
+    "namespace": "com.example",
+    "doc": "Recursive shapes.",
+    "fields": [
+        {
+            "name": "list",
+            "type": {
+                "type": "record",
+                "name": "LongList",
+                "doc": "Linked list of longs.",
+                "fields": [
+                    {
+                        "name": "value",
+                        "type": "long"
+                    },
+                    {
+                        "name": "next",
+                        "type": ["null", "LongList"]
+                    }
+                ]
+            }
+        },
+        {
+            "name": "direct",
+            "type": {
+                "type": "record",
+                "name": "Chain",
+                "fields": [
+                    {
+                        "name": "value",
+                        "type": "int"
+                    },
+                    {
+                        "name": "next",
+                        "type": "Chain"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "tree",
+            "type": {
+                "type": "record",
+                "name": "Tree",
+                "fields": [
+                    {
+                        "name": "value",
+                        "type": "string"
+                    },
+                    {
+                        "name": "children",
+                        "type": {
+                            "type": "array",
+                            "items": "Tree"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "mutualA",
+            "type": {
+                "type": "record",
+                "name": "A",
+                "fields": [
+                    {
+                        "name": "b",
+                        "type": {
+                            "type": "record",
+                            "name": "B",
+                            "fields": [
+                                {
+                                    "name": "a",
+                                    "type": ["null", "A"]
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    ]
+}

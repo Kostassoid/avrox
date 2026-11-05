@@ -1,0 +1,35 @@
+{
+    "type": "record",
+    "name": "Keywords",
+    "doc": "Fields and symbols named after Rust keywords.",
+    "fields": [
+        {
+            "name": "type",
+            "type": "string"
+        },
+        {
+            "name": "self",
+            "type": "long"
+        },
+        {
+            "name": "match",
+            "type": "int"
+        },
+        {
+            "name": "crate",
+            "type": "boolean"
+        },
+        {
+            "name": "move",
+            "type": ["null", "string"]
+        },
+        {
+            "name": "fn",
+            "type": {
+                "type": "enum",
+                "name": "Mode",
+                "symbols": ["type", "self", "do", "async"]
+            }
+        }
+    ]
+}

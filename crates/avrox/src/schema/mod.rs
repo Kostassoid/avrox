@@ -27,11 +27,9 @@ pub struct Document {
 
 impl Document {
     /// Looks up a named type by its fullname.
+    #[must_use]
     pub fn get(&self, name: &FullName) -> Option<&NamedType> {
-        self.types
-            .iter()
-            .find(|ty| ty.name() == name)
-            .map(|ty| ty)
+        self.types.iter().find(|ty| ty.name() == name)
     }
 }
 
@@ -79,6 +77,7 @@ pub enum Schema {
 impl Schema {
     /// The primitive or complex Avro type name used for binary encoding, e.g.
     /// `int` for `Schema::Int` and `array` for `Schema::Array`.
+    #[must_use]
     pub fn avro_type_name(&self) -> &'static str {
         match self {
             Self::Null => "null",
@@ -96,6 +95,21 @@ impl Schema {
             Self::Map(_) => "map",
             Self::Union(_) => "union",
             Self::Logical { .. } => "logical",
+        }
+    }
+
+    /// A structural key identifying this schema: primitives by type name,
+    /// named types by kind and fullname, collections recursively by their
+    /// item or value schemas. Used to deduplicate equal unions.
+    pub(crate) fn union_branch_key(&self) -> String {
+        match self {
+            Self::Record(name) => format!("record:{name}"),
+            Self::Enum(name) => format!("enum:{name}"),
+            Self::Fixed(name) => format!("fixed:{name}"),
+            Self::Array(items) => format!("array<{}>", items.union_branch_key()),
+            Self::Map(values) => format!("map<{}>", values.union_branch_key()),
+            Self::Logical { base, .. } => base.union_branch_key(),
+            other => other.avro_type_name().to_owned(),
         }
     }
 }
@@ -139,6 +153,7 @@ pub enum LogicalType {
 impl LogicalType {
     /// The Avro name of the logical type, as it appears in the
     /// `logicalType` attribute.
+    #[must_use]
     pub fn avro_name(self) -> &'static str {
         match self {
             Self::Decimal { .. } => "decimal",
@@ -177,11 +192,22 @@ pub enum NamedType {
 
 impl NamedType {
     /// The fullname of the type.
+    #[must_use]
     pub fn name(&self) -> &FullName {
         match self {
             Self::Record(record) => &record.name,
             Self::Enum(enum_) => &enum_.name,
             Self::Fixed(fixed) => &fixed.name,
+        }
+    }
+
+    /// The aliases of the type, resolved to fullnames.
+    #[must_use]
+    pub fn aliases(&self) -> &[FullName] {
+        match self {
+            Self::Record(record) => &record.aliases,
+            Self::Enum(enum_) => &enum_.aliases,
+            Self::Fixed(fixed) => &fixed.aliases,
         }
     }
 }
@@ -270,6 +296,7 @@ pub struct FullName {
 
 impl FullName {
     /// Creates a fullname from an optional namespace and a simple name.
+    #[must_use]
     pub fn new(namespace: Option<&str>, name: &str) -> Self {
         Self {
             namespace: namespace.map(str::to_owned),
@@ -278,10 +305,12 @@ impl FullName {
     }
 
     /// The fully qualified name, e.g. `com.example.User`.
+    #[must_use]
     pub fn full(&self) -> String {
+        let name = &self.name;
         match &self.namespace {
-            Some(namespace) => format!("{namespace}.{self.name}"),
-            None => self.name.clone(),
+            Some(namespace) => format!("{namespace}.{name}"),
+            None => name.clone(),
         }
     }
 }

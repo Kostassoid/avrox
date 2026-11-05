@@ -1,0 +1,18 @@
+{
+    "type": "record",
+    "name": "R",
+    "fields": [
+        {
+            "name": "x",
+            "type": "B"
+        },
+        {
+            "name": "y",
+            "type": {
+                "type": "record",
+                "name": "B",
+                "fields": []
+            }
+        }
+    ]
+}

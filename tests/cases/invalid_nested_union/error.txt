@@ -1,0 +1,1 @@
+invalid schema at `$.fields[0].type[1]`: unions may not immediately contain other unions

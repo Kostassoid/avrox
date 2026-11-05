@@ -1,0 +1,50 @@
+{
+    "type": "record",
+    "name": "Collections",
+    "fields": [
+        {
+            "name": "ids",
+            "type": {
+                "type": "array",
+                "items": "long"
+            }
+        },
+        {
+            "name": "matrix",
+            "type": {
+                "type": "array",
+                "items": {
+                    "type": "array",
+                    "items": "int"
+                }
+            }
+        },
+        {
+            "name": "labels",
+            "type": {
+                "type": "map",
+                "values": "string"
+            }
+        },
+        {
+            "name": "lookup",
+            "type": {
+                "type": "map",
+                "values": {
+                    "type": "array",
+                    "items": "double"
+                }
+            }
+        },
+        {
+            "name": "tags",
+            "type": {
+                "type": "array",
+                "items": {
+                    "type": "map",
+                    "values": "int"
+                }
+            }
+        }
+    ]
+}

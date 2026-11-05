@@ -1,0 +1,27 @@
+{
+    "type": "record",
+    "name": "Card",
+    "doc": "A playing card.",
+    "fields": [
+        {
+            "name": "suit",
+            "type": {
+                "type": "enum",
+                "name": "Suit",
+                "doc": "Playing card suits.",
+                "aliases": ["Suits"],
+                "symbols": ["SPADES", "HEARTS", "DIAMONDS", "CLUBS"],
+                "default": "SPADES"
+            }
+        },
+        {
+            "name": "status",
+            "type": {
+                "type": "enum",
+                "name": "Status",
+                "doc": "Card status.",
+                "symbols": ["unknown", "pending", "active", "retired"]
+            }
+        }
+    ]
+}

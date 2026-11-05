@@ -1,0 +1,92 @@
+{
+    "type": "record",
+    "name": "Defaults",
+    "doc": "Field defaults, aliases and order attributes.",
+    "fields": [
+        {
+            "name": "a",
+            "type": "int",
+            "default": 42,
+            "order": "descending",
+            "aliases": ["aValue"]
+        },
+        {
+            "name": "b",
+            "type": "string",
+            "default": "hello"
+        },
+        {
+            "name": "c",
+            "type": ["null", "long"],
+            "default": null
+        },
+        {
+            "name": "d",
+            "type": ["int", "string"],
+            "default": 7
+        },
+        {
+            "name": "e",
+            "type": {
+                "type": "array",
+                "items": "int"
+            },
+            "default": [1, 2, 3]
+        },
+        {
+            "name": "f",
+            "type": {
+                "type": "map",
+                "values": "double"
+            },
+            "default": {
+                "x": 1.5
+            }
+        },
+        {
+            "name": "g",
+            "type": "bytes",
+            "default": "\u00FF"
+        },
+        {
+            "name": "h",
+            "type": {
+                "type": "fixed",
+                "name": "F4",
+                "size": 4
+            },
+            "default": "abcd"
+        },
+        {
+            "name": "i",
+            "type": {
+                "type": "enum",
+                "name": "E",
+                "symbols": ["A", "B"]
+            },
+            "default": "B"
+        },
+        {
+            "name": "nested",
+            "type": {
+                "type": "record",
+                "name": "N",
+                "fields": [
+                    {
+                        "name": "x",
+                        "type": "long",
+                        "default": 3
+                    },
+                    {
+                        "name": "y",
+                        "type": "string"
+                    }
+                ]
+            },
+            "default": {
+                "x": 9,
+                "y": "complete"
+            }
+        }
+    ]
+}

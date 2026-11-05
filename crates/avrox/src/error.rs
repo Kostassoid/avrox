@@ -21,14 +21,26 @@ pub enum Error {
         message: String,
     },
 
-    /// The schema is valid, but not supported by the generator.
+    /// The schema is valid, but uses constructs the generator does not
+    /// support for the target language.
     #[error("unsupported schema: {0}")]
     Unsupported(String),
+
+    /// The generator produced something unexpected; this indicates a bug in
+    /// `avrox` itself.
+    #[error("internal error: {0}")]
+    Internal(String),
 }
 
-pub(crate) fn schema_error<T>(path: &str, message: impl Into<String>) -> Result<T> {
-    Err(Error::Schema {
+/// Builds a schema violation error at `path`.
+pub(crate) fn invalid_schema(path: &str, message: impl Into<String>) -> Error {
+    Error::Schema {
         path: path.to_owned(),
         message: message.into(),
-    })
+    }
+}
+
+/// Fails with a schema violation error at `path`.
+pub(crate) fn schema_error<T>(path: &str, message: impl Into<String>) -> Result<T> {
+    Err(invalid_schema(path, message))
 }

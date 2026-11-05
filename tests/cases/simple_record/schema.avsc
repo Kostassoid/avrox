@@ -1,0 +1,24 @@
+{
+    "type": "record",
+    "name": "User",
+    "doc": "A user account.",
+    "fields": [
+        {
+            "name": "id",
+            "type": "long",
+            "doc": "Unique identifier."
+        },
+        {
+            "name": "name",
+            "type": "string"
+        },
+        {
+            "name": "email",
+            "type": [
+                "null",
+                "string"
+            ],
+            "doc": "Optional email address."
+        }
+    ]
+}

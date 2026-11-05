@@ -1,0 +1,129 @@
+{
+    "type": "record",
+    "name": "Logical",
+    "doc": "Every logical type of Avro 1.12.",
+    "fields": [
+        {
+            "name": "date",
+            "type": {
+                "type": "int",
+                "logicalType": "date"
+            }
+        },
+        {
+            "name": "timeMillis",
+            "type": {
+                "type": "int",
+                "logicalType": "time-millis"
+            }
+        },
+        {
+            "name": "timeMicros",
+            "type": {
+                "type": "long",
+                "logicalType": "time-micros"
+            }
+        },
+        {
+            "name": "timestampMillis",
+            "type": {
+                "type": "long",
+                "logicalType": "timestamp-millis"
+            }
+        },
+        {
+            "name": "timestampMicros",
+            "type": {
+                "type": "long",
+                "logicalType": "timestamp-micros"
+            }
+        },
+        {
+            "name": "timestampNanos",
+            "type": {
+                "type": "long",
+                "logicalType": "timestamp-nanos"
+            }
+        },
+        {
+            "name": "localTimestampMillis",
+            "type": {
+                "type": "long",
+                "logicalType": "local-timestamp-millis"
+            }
+        },
+        {
+            "name": "localTimestampMicros",
+            "type": {
+                "type": "long",
+                "logicalType": "local-timestamp-micros"
+            }
+        },
+        {
+            "name": "localTimestampNanos",
+            "type": {
+                "type": "long",
+                "logicalType": "local-timestamp-nanos"
+            }
+        },
+        {
+            "name": "uuid",
+            "type": {
+                "type": "string",
+                "logicalType": "uuid"
+            }
+        },
+        {
+            "name": "uuidBytes",
+            "type": {
+                "type": "fixed",
+                "name": "UuidBytes",
+                "size": 16,
+                "logicalType": "uuid"
+            }
+        },
+        {
+            "name": "decimalBytes",
+            "type": {
+                "type": "bytes",
+                "logicalType": "decimal",
+                "precision": 4,
+                "scale": 2
+            }
+        },
+        {
+            "name": "decimalFixed",
+            "type": {
+                "type": "fixed",
+                "name": "DecimalFixed",
+                "size": 8,
+                "logicalType": "decimal",
+                "precision": 18,
+                "scale": 6
+            }
+        },
+        {
+            "name": "bigDecimal",
+            "type": {
+                "type": "bytes",
+                "logicalType": "big-decimal"
+            }
+        },
+        {
+            "name": "duration",
+            "type": {
+                "type": "fixed",
+                "name": "Duration",
+                "size": 12,
+                "logicalType": "duration"
+            }
+        },
+        {
+            "name": "unknownLogical",
+            "type": {
+                "type": "int",
+                "logicalType": "flavor"
+            }
+        }
+    ]
+}

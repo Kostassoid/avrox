@@ -1,0 +1,1 @@
+invalid schema at `$.fields[1].name`: duplicate field name `x`

@@ -1,0 +1,51 @@
+{
+    "type": "record",
+    "name": "Parent",
+    "namespace": "com.example.parent",
+    "doc": "Namespace resolution rules.",
+    "fields": [
+        {
+            "name": "child",
+            "type": {
+                "type": "record",
+                "name": "Child",
+                "doc": "Inherits the enclosing namespace.",
+                "fields": [
+                    {
+                        "name": "name",
+                        "type": "string"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "other",
+            "type": {
+                "type": "record",
+                "name": "other.Thing",
+                "namespace": "ignored",
+                "doc": "A fullname in the name attribute ignores the namespace attribute.",
+                "fields": [
+                    {
+                        "name": "id",
+                        "type": "int"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "nullNs",
+            "type": {
+                "type": "record",
+                "name": "Plain",
+                "namespace": "",
+                "doc": "An empty namespace attribute selects the null namespace.",
+                "fields": []
+            }
+        },
+        {
+            "name": "reference",
+            "type": "com.example.parent.Child"
+        }
+    ]
+}

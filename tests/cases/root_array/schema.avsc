@@ -1,0 +1,17 @@
+{
+    "type": "array",
+    "items": {
+        "type": "record",
+        "name": "Item",
+        "fields": [
+            {
+                "name": "id",
+                "type": "long"
+            },
+            {
+                "name": "name",
+                "type": ["null", "string"]
+            }
+        ]
+    }
+}

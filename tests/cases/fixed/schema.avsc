@@ -1,0 +1,32 @@
+{
+    "type": "record",
+    "name": "Hashed",
+    "doc": "Data with checksums.",
+    "fields": [
+        {
+            "name": "payload",
+            "type": "bytes"
+        },
+        {
+            "name": "md5",
+            "type": {
+                "type": "fixed",
+                "name": "Md5",
+                "size": 16,
+                "doc": "An MD5 checksum."
+            }
+        },
+        {
+            "name": "digest",
+            "type": "Md5"
+        },
+        {
+            "name": "raw",
+            "type": {
+                "type": "fixed",
+                "name": "com.example.Raw",
+                "size": 4
+            }
+        }
+    ]
+}
