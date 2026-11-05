@@ -53,8 +53,20 @@ namespaces are rejected, and Avro protocols (`.avpr`) are not supported.
 
 ## Development
 
+Common commands are available as [`just`](https://just.systems) recipes — run
+`just --list` to see them all:
+
 ```sh
-cargo build --workspace
+just ci      # run the same checks as CI (fmt, clippy, build, test)
+just test    # run all tests
+just bless   # regenerate the expected outputs under tests/cases
+just run path/to/schema.avsc  # run the CLI
+```
+
+Without `just`, the equivalent raw commands are:
+
+```sh
+cargo build --workspace --all-targets
 cargo test --workspace
 cargo clippy --workspace --all-targets
 cargo fmt --all --check
