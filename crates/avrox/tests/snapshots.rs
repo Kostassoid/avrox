@@ -68,7 +68,7 @@ fn run_case(case: &Path, bless: bool) -> Result<(), String> {
     if error_path.exists() {
         let expected = fs::read_to_string(&error_path)
             .map_err(|error| format!("failed to read error.txt: {error}"))?;
-        let expected = expected.trim_end().to_owned();
+        let expected = normalize_newlines(&expected).trim_end().to_owned();
         let error = match result {
             Err(error) => error.to_string(),
             Ok(_) => return Err("case was expected to fail".to_owned()),
@@ -149,7 +149,7 @@ fn collect_expected(expected_dir: &Path) -> Result<BTreeMap<String, String>, Str
                 .to_owned();
             let contents = fs::read_to_string(&path)
                 .map_err(|error| format!("failed to read `{}`: {error}", path.display()))?;
-            expected.insert(name, contents);
+            expected.insert(name, normalize_newlines(&contents));
         }
     }
     Ok(expected)
@@ -224,6 +224,10 @@ fn write_actual(case: &Path, path: &str, contents: &str) {
     if fs::create_dir_all(&directory).is_ok() {
         let _ = fs::write(directory.join(path), contents);
     }
+}
+
+fn normalize_newlines(contents: &str) -> String {
+    contents.replace("\r\n", "\n")
 }
 
 fn first_difference(expected: &str, actual: &str) -> String {
