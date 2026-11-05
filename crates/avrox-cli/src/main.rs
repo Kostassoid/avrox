@@ -4,11 +4,17 @@ use std::{fs, path::PathBuf};
 
 use anyhow::{Context, Result};
 use avrox::{AvroVersion, Language, Layout, RustOptions, RustTime, RustTypes, Settings};
-use clap::{Parser, ValueEnum};
+use clap::{ArgGroup, Parser, ValueEnum};
 
 /// Generates code from Avro schemas.
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
+#[command(group(
+    ArgGroup::new("output")
+        .required(true)
+        .multiple(false)
+        .args(["output_file", "output_dir"]),
+))]
 struct Cli {
     /// Avro schema file to generate code from.
     input: PathBuf,
@@ -21,10 +27,6 @@ struct Cli {
     #[arg(long, value_enum, default_value = "1.12")]
     avro_version: VersionArg,
 
-    /// How the generated code is split into files.
-    #[arg(long, value_enum, default_value = "single")]
-    layout: LayoutArg,
-
     /// Which types the generated Rust code uses.
     #[arg(long, value_enum, default_value = "avro")]
     rust_types: TypesArg,
@@ -33,10 +35,15 @@ struct Cli {
     #[arg(long, value_enum, default_value = "primitives")]
     rust_time: TimeArg,
 
-    /// Directory to write generated files into instead of printing them to
-    /// stdout.
-    #[arg(short, long)]
-    output: Option<PathBuf>,
+    /// File to write the generated code to, ignoring the file name proposed
+    /// by the generator. Selects the single-file layout.
+    #[arg(long)]
+    output_file: Option<PathBuf>,
+
+    /// Directory to write the generated files into. Selects the module
+    /// layout.
+    #[arg(long)]
+    output_dir: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug, ValueEnum)]
@@ -49,21 +56,6 @@ impl From<LanguageArg> for Language {
     fn from(value: LanguageArg) -> Self {
         match value {
             LanguageArg::Rust => Self::Rust,
-        }
-    }
-}
-
-#[derive(Clone, Debug, ValueEnum)]
-enum LayoutArg {
-    Single,
-    Module,
-}
-
-impl From<LayoutArg> for Layout {
-    fn from(value: LayoutArg) -> Self {
-        match value {
-            LayoutArg::Single => Self::SingleFile,
-            LayoutArg::Module => Self::Module,
         }
     }
 }
@@ -129,10 +121,16 @@ fn main() -> Result<()> {
 fn run(cli: &Cli) -> Result<()> {
     let schema = fs::read_to_string(&cli.input)
         .with_context(|| format!("failed to read `{}`", cli.input.display()))?;
+    let (layout, output) = match (&cli.output_file, &cli.output_dir) {
+        (Some(file), None) => (Layout::SingleFile, Output::File(file.clone())),
+        (None, Some(directory)) => (Layout::Module, Output::Directory(directory.clone())),
+        // clap enforces that exactly one of the two is given.
+        _ => unreachable!("exactly one of `--output-file`/`--output-dir` must be given"),
+    };
     let settings = Settings {
         language: cli.language.clone().into(),
         avro_version: cli.avro_version.clone().into(),
-        layout: cli.layout.clone().into(),
+        layout,
         rust: RustOptions {
             types: cli.rust_types.clone().into(),
             time: cli.rust_time.clone().into(),
@@ -140,16 +138,31 @@ fn run(cli: &Cli) -> Result<()> {
     };
     let files = avrox::generate(&schema, &settings)
         .with_context(|| format!("failed to generate code from `{}`", cli.input.display()))?;
-    write_output(cli, &files)
+    write_output(cli, &output, &files)
 }
 
-fn write_output(cli: &Cli, files: &[avrox::GeneratedFile]) -> Result<()> {
+enum Output {
+    File(PathBuf),
+    Directory(PathBuf),
+}
+
+fn write_output(cli: &Cli, output: &Output, files: &[avrox::GeneratedFile]) -> Result<()> {
     if files.is_empty() {
         println!("no types to generate for `{}`", cli.input.display());
         return Ok(());
     }
-    match &cli.output {
-        Some(directory) => {
+    match output {
+        Output::File(path) => {
+            let file = &files[0];
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)
+                    .with_context(|| format!("failed to create `{}`", parent.display()))?;
+            }
+            fs::write(path, &file.contents)
+                .with_context(|| format!("failed to write `{}`", path.display()))?;
+            println!("generated {}", path.display());
+        }
+        Output::Directory(directory) => {
             fs::create_dir_all(directory)
                 .with_context(|| format!("failed to create `{}`", directory.display()))?;
             for file in files {
@@ -161,17 +174,6 @@ fn write_output(cli: &Cli, files: &[avrox::GeneratedFile]) -> Result<()> {
                 fs::write(&path, &file.contents)
                     .with_context(|| format!("failed to write `{}`", path.display()))?;
                 println!("generated {}", path.display());
-            }
-        }
-        None => {
-            for (index, file) in files.iter().enumerate() {
-                if files.len() > 1 {
-                    if index > 0 {
-                        println!();
-                    }
-                    println!("// ===== {} =====", file.path);
-                }
-                print!("{}", file.contents);
             }
         }
     }

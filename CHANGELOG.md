@@ -23,7 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `std` (standard library types plus generated helpers that still
   round-trip through `apache-avro`).
 - `avrox-cli` command line frontend with `--language`, `--avro-version`,
-  `--layout` and `--types` options.
+  `--rust-types` and `--rust-time` options; exactly one of `--output-file`
+  (single-file layout, treated as a file path) or `--output-dir` (module
+  layout) must be given and decides where the generated code is written.
 - Black-box snapshot tests under `tests/cases`, unit tests for the parser and
   generator, and round-trip verification against `apache-avro`.
 - CI workflow, `Justfile` with common development commands and a `dist`-based

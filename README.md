@@ -18,21 +18,23 @@ language.
 ## Usage
 
 ```sh
-cargo run -p avrox-cli -- path/to/schema.avsc            # print to stdout
-cargo run -p avrox-cli -- path/to/schema.avsc -o src/gen # write files
-cargo run -p avrox-cli -- path/to/schema.avsc --layout module -o src/gen
+cargo run -p avrox-cli -- path/to/schema.avsc --output-file src/gen.rs
+cargo run -p avrox-cli -- path/to/schema.avsc --output-dir src/gen
 cargo run -p avrox-cli -- --help
 ```
 
 Options include `--language` (currently `rust`), `--avro-version`
-(`1.10`, `1.11` or `1.12`, the default), `--layout`, `--rust-types` and
-`--rust-time`:
+(`1.10`, `1.11` or `1.12`, the default), `--rust-types` and `--rust-time`.
+Exactly one of the two output options must be given:
 
-- `--layout single` (default): everything in one file, named after the root
-  type of the schema;
-- `--layout module`: one file per named type plus a `mod.rs` declaring and
-  re-exporting them; generated union enums live in `mod.rs`. The result can
-  be used as a Rust module directory as is.
+- `--output-file <FILE>`: single-file layout — everything in one file,
+  written to the given path; the file name proposed by the generator is
+  ignored;
+- `--output-dir <DIR>`: module layout — one file per named type plus an
+  index file declaring and re-exporting them. For Rust (currently the only
+  supported language) that index file is a `mod.rs` which also holds the
+  generated union enums, so the result can be used as a module directory
+  as is.
 - `--rust-types avro` (default): generated types rely on the official
   [`apache-avro`](https://docs.rs/apache-avro) crate — `bytes`/`fixed` use
   `serde_bytes`, and the `uuid`/`decimal`/`duration` logical types become
@@ -94,7 +96,7 @@ Common commands are available as [`just`](https://just.systems) recipes — run
 just ci      # run the same checks as CI (fmt, clippy, build, test)
 just test    # run all tests
 just bless   # regenerate the expected outputs under tests/cases
-just run path/to/schema.avsc  # run the CLI
+just run path/to/schema.avsc --output-dir src/gen  # run the CLI
 ```
 
 Without `just`, the equivalent raw commands are:
