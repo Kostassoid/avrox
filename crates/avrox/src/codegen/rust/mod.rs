@@ -741,10 +741,10 @@ impl<'a> Generator<'a> {
         context: &mut FileContext,
     ) -> TokenStream {
         let rust_name = &self.type_names[name];
-        if let Some(references) = &mut context.references {
-            if context.own_name.as_deref() != Some(rust_name.as_str()) {
-                references.insert(rust_name.clone());
-            }
+        if let Some(references) = &mut context.references
+            && context.own_name.as_deref() != Some(rust_name.as_str())
+        {
+            references.insert(rust_name.clone());
         }
         let (ident, _) = naming::make_ident(rust_name);
         let boxed = container
@@ -791,10 +791,10 @@ impl<'a> Generator<'a> {
                 let Some(name) = name else {
                     return Err(Error::Internal("union enum has no name".to_owned()));
                 };
-                if let Some(references) = &mut context.references {
-                    if context.own_name.as_deref() != Some(name) {
-                        references.insert(name.to_owned());
-                    }
+                if let Some(references) = &mut context.references
+                    && context.own_name.as_deref() != Some(name)
+                {
+                    references.insert(name.to_owned());
                 }
                 let (ident, _) = naming::make_ident(name);
                 Ok(quote!(#ident))
@@ -856,14 +856,14 @@ fn imports(context: &FileContext) -> Vec<TokenStream> {
     if context.imports.contains(&Import::HashMap) {
         uses.push(quote! { use std::collections::HashMap; });
     }
-    if let Some(references) = &context.references {
-        if !references.is_empty() {
-            let idents: Vec<Ident> = references
-                .iter()
-                .map(|name| naming::make_ident(name).0)
-                .collect();
-            uses.push(quote! { use super::{#(#idents),*}; });
-        }
+    if let Some(references) = &context.references
+        && !references.is_empty()
+    {
+        let idents: Vec<Ident> = references
+            .iter()
+            .map(|name| naming::make_ident(name).0)
+            .collect();
+        uses.push(quote! { use super::{#(#idents),*}; });
     }
     uses
 }

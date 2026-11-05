@@ -6,7 +6,7 @@ members = ["crates/avrox", "crates/avrox-cli"]
 version = "1.0.1"
 authors = ["Konstantin Alexandroff <k.alexandroff@gmail.com>"]
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.91"
 license = "MIT"
 repository = "https://github.com/Kostassoid/avrox"
 

@@ -38,13 +38,14 @@ enum NamedKind {
 /// [`Error::Schema`] if it violates the Avro specification.
 pub fn parse(source: &str, version: AvroVersion) -> Result<Document> {
     let value: Value = serde_json::from_str(source)?;
-    if let Some(object) = value.as_object() {
-        if object.contains_key("protocol") && !object.contains_key("type") {
-            return schema_error(
-                "$",
-                "Avro protocols are not supported; expected a schema definition (.avsc)",
-            );
-        }
+    if let Some(object) = value.as_object()
+        && object.contains_key("protocol")
+        && !object.contains_key("type")
+    {
+        return schema_error(
+            "$",
+            "Avro protocols are not supported; expected a schema definition (.avsc)",
+        );
     }
     let mut parser = Parser {
         version,
