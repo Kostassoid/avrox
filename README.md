@@ -1,3 +1,7 @@
+<div align="center">
+<img src="assets/logo.svg" alt="Logo" />
+</div>
+
 # avrox
 
 Avro code generator, in the spirit of `protoc`: takes `.avsc` schemas and
