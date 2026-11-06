@@ -1,0 +1,14 @@
+{
+    "type": "record",
+    "name": "MapOfNullableString",
+    "fields": [
+        {
+            "name": "map_of_string_and_null",
+            "type": {
+                "type": "map",
+                "values": ["string", "null"]
+            },
+            "default": {}
+        }
+    ]
+}

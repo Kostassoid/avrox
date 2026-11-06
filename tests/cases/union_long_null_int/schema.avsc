@@ -1,0 +1,10 @@
+{
+    "type": "record",
+    "name": "UnionWithNullInMiddle",
+    "fields": [
+        {
+            "name": "e",
+            "type": ["long", "null", "int"]
+        }
+    ]
+}
