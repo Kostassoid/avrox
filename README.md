@@ -221,18 +221,18 @@ for file in &files {
 
 `Settings` controls the target language, Avro version, output layout and
 language-specific options. `Settings::new()` starts from the defaults, and
-`with_*` methods return the modified value, so settings can be built in a
+the builder methods return the modified value, so settings can be built in a
 single expression:
 
 ```rust
 use avrox::{AvroVersion, Layout, RustTime, RustTypes, Settings};
 
 let settings = Settings::new()
-    .with_layout(Layout::Module)
-    .with_avro_version(AvroVersion::V1_11)
-    .with_rust_types(RustTypes::Std)
-    .with_rust_time(RustTime::Chrono)
-    .with_rust_derives(["Hash", "derive_more::Display"]);
+    .layout(Layout::Module)
+    .avro_version(AvroVersion::V1_11)
+    .rust_types(RustTypes::Std)
+    .rust_time(RustTime::Chrono)
+    .rust_derives(["Hash", "derive_more::Display"]);
 ```
 
 `RustOptions` has the same builder style and can be assembled separately:
@@ -241,22 +241,11 @@ let settings = Settings::new()
 use avrox::{RustOptions, RustTime, RustTypes, Settings};
 
 let rust = RustOptions::new()
-    .with_types(RustTypes::ApacheAvro)
-    .with_time(RustTime::StdTime)
-    .with_derive("Hash");
+    .types(RustTypes::ApacheAvro)
+    .time(RustTime::StdTime)
+    .derive("Hash");
 
-let settings = Settings::new().with_rust(rust);
-```
-
-Settings can also be modified in place through the `set_*` methods and
-`add_rust_derive`:
-
-```rust
-let mut settings = Settings::default();
-settings
-    .set_layout(Layout::Module)
-    .set_rust_types(RustTypes::Std)
-    .add_rust_derive("Hash");
+let settings = Settings::new().rust(rust);
 ```
 
 ### Writing generated files
@@ -280,7 +269,7 @@ creating subdirectories as needed:
 use std::{fs, path::Path};
 
 fn write_module(schema: &str, output: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    let settings = avrox::Settings::new().with_layout(avrox::Layout::Module);
+    let settings = avrox::Settings::new().layout(avrox::Layout::Module);
     for file in avrox::generate(schema, &settings)? {
         let path = output.join(&file.path);
         if let Some(parent) = path.parent() {

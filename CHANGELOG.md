@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `Settings` and `RustOptions` now expose only functional-style builders, with
+  the `with_` prefix removed (`with_layout` becomes `layout`, `with_types`
+  becomes `types`, and so on). The in-place `set_*` and `add_*` methods have
+  been removed.
 - `avrox-cli read` now renders `decimal` values as exact decimal strings using
   the schema scale instead of arrays of bytes, and `avrox-cli write` accepts
   those strings alongside the previous byte-array form.

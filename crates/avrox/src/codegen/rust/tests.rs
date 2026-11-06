@@ -4,7 +4,7 @@ use crate::{GeneratedFile, Layout, RustOptions, RustTime, RustTypes, Settings};
 fn generate_with(schema: &str, layout: Layout, options: RustOptions) -> Vec<GeneratedFile> {
     let document = crate::schema::parse(schema, crate::AvroVersion::V1_12)
         .unwrap_or_else(|error| panic!("{error}"));
-    let settings = Settings::default().with_layout(layout).with_rust(options);
+    let settings = Settings::default().layout(layout).rust(options);
     generate(&document, &settings).unwrap_or_else(|error| panic!("{error}"))
 }
 
@@ -41,7 +41,7 @@ fn generate_with_time(schema: &str, time: RustTime) -> Vec<GeneratedFile> {
 fn generate_err_time(schema: &str, time: RustTime) -> String {
     let document = crate::schema::parse(schema, crate::AvroVersion::V1_12)
         .unwrap_or_else(|error| panic!("{error}"));
-    let settings = Settings::default().with_rust(RustOptions {
+    let settings = Settings::default().rust(RustOptions {
         time,
         ..RustOptions::default()
     });
@@ -78,7 +78,7 @@ fn contents_of_std(schema: &str) -> String {
 fn generate_err_std(schema: &str) -> String {
     let document = crate::schema::parse(schema, crate::AvroVersion::V1_12)
         .unwrap_or_else(|error| panic!("{error}"));
-    let settings = Settings::default().with_rust(RustOptions {
+    let settings = Settings::default().rust(RustOptions {
         types: RustTypes::Std,
         ..RustOptions::default()
     });
@@ -101,7 +101,7 @@ fn generate_with_derives(schema: &str, derives: &[&str]) -> Vec<GeneratedFile> {
 fn generate_err_derives(schema: &str, derives: &[&str]) -> String {
     let document = crate::schema::parse(schema, crate::AvroVersion::V1_12)
         .unwrap_or_else(|error| panic!("{error}"));
-    let settings = Settings::default().with_rust(RustOptions {
+    let settings = Settings::default().rust(RustOptions {
         derives: derives.iter().map(|derive| (*derive).to_owned()).collect(),
         ..RustOptions::default()
     });
