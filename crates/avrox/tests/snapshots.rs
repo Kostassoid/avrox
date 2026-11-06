@@ -5,7 +5,7 @@
 //!
 //! - `schema.avsc`: the Avro schema to generate code from,
 //! - `settings.json` (optional): `language`, `avro_version`, `layout` and
-//!   `rust.types`/`rust.time` overrides,
+//!   `rust.types`/`rust.time`/`rust.derives` overrides,
 //! - `expected/`: the expected generated files, or `error.txt`: the expected
 //!   error message.
 //!
@@ -205,6 +205,24 @@ fn read_settings(case: &Path) -> Result<Settings, String> {
                     "chrono" => RustTime::Chrono,
                     other => return Err(format!("unsupported rust time `{other}`")),
                 },
+                ..settings.rust
+            };
+        }
+        if let Some(derives) = rust.get("derives") {
+            let values = match derives {
+                serde_json::Value::Array(values) => values,
+                serde_json::Value::String(_) => std::slice::from_ref(derives),
+                _ => return Err("rust.derives must be a string or an array of strings".to_owned()),
+            };
+            let mut parsed = Vec::with_capacity(values.len());
+            for value in values {
+                let derive = value
+                    .as_str()
+                    .ok_or_else(|| "rust.derives entries must be strings".to_owned())?;
+                parsed.push(derive.to_owned());
+            }
+            settings.rust = RustOptions {
+                derives: parsed,
                 ..settings.rust
             };
         }

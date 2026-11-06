@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `--rust-derive` CLI option and `RustOptions::derives` setting for adding
+  derives to generated Rust records, enums and union enums. Short names like
+  `Hash` and fully qualified paths like `derive_more::Display` are accepted.
 - Shell and PowerShell installers for `avrox-cli`, letting users download the
   latest release and install it with a single command.
 

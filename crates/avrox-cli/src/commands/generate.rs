@@ -34,6 +34,17 @@ pub(crate) struct Generate {
     #[arg(long, value_enum, default_value = "primitives")]
     rust_time: TimeArg,
 
+    /// Additional derives to add to generated Rust data types. May be given
+    /// multiple times. Bare names like `Hash` and fully qualified paths like
+    /// `derive_more::Display` are accepted.
+    #[arg(
+        long = "rust-derive",
+        visible_alias = "rust-derives",
+        value_name = "DERIVE",
+        value_delimiter = ','
+    )]
+    rust_derives: Vec<String>,
+
     /// File to write the generated code to, ignoring the file name proposed
     /// by the generator. Selects the single-file layout.
     #[arg(long)]
@@ -129,6 +140,7 @@ pub(crate) fn run(args: &Generate) -> Result<()> {
         rust: RustOptions {
             types: args.rust_types.clone().into(),
             time: args.rust_time.clone().into(),
+            derives: args.rust_derives.clone(),
         },
     };
     let files = avrox::generate(&schema, &settings)

@@ -1,0 +1,5 @@
+{
+    "rust": {
+        "derives": ["Hash", "derive_more::Display"]
+    }
+}

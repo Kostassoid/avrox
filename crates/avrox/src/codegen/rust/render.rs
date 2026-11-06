@@ -10,11 +10,10 @@ use crate::error::{Error, Result};
 use crate::schema::{Enum, Field, Fixed, FullName, NamedType, Record, Schema};
 
 use super::decorators::Decorators;
-use super::docs;
 use super::emit::{FileContext, Import};
 use super::model::{Model, Node};
 use super::union::UnionRendering;
-use super::{helpers, naming, union};
+use super::{derives, docs, helpers, naming, union};
 
 /// Renders the indexed model. Option-specific leaf mappings are delegated to
 /// decorators so this module only handles Rust's structural type rules.
@@ -27,7 +26,7 @@ impl<'model, 'document> Renderer<'model, 'document> {
     pub(super) fn new(model: &'model Model<'document>) -> Self {
         Self {
             model,
-            decorators: Decorators::new(model.options),
+            decorators: Decorators::new(&model.options),
         }
     }
 
@@ -52,9 +51,13 @@ impl<'model, 'document> Renderer<'model, 'document> {
             .map(|field| self.render_field(field, &record.name, context))
             .collect::<Result<Vec<_>>>()?;
         let doc = docs::attributes(record.doc.as_deref(), Vec::new());
+        let derives = derives::attribute(
+            &["Debug", "Clone", "PartialEq", "Serialize", "Deserialize"],
+            &self.model.derives,
+        );
         Ok(quote! {
             #(#doc)*
-            #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+            #derives
             pub struct #ident {
                 #(#fields)*
             }
@@ -109,11 +112,12 @@ impl<'model, 'document> Renderer<'model, 'document> {
                 #variant,
             });
         }
-        let derives = if enum_.default.is_some() {
-            quote! { #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)] }
-        } else {
-            quote! { #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)] }
-        };
+        let mut base = vec!["Debug", "Clone", "Copy", "PartialEq", "Eq", "Hash"];
+        if enum_.default.is_some() {
+            base.push("Default");
+        }
+        base.extend(["Serialize", "Deserialize"]);
+        let derives = derives::attribute(&base, &self.model.derives);
         let doc = docs::attributes(enum_.doc.as_deref(), Vec::new());
         quote! {
             #(#doc)*
@@ -174,9 +178,13 @@ impl<'model, 'document> Renderer<'model, 'document> {
             .join(", ")
         );
         let doc_attributes = vec![quote! { #[doc = #doc] }];
+        let derives = derives::attribute(
+            &["Debug", "Clone", "PartialEq", "Serialize", "Deserialize"],
+            &self.model.derives,
+        );
         Ok(quote! {
             #(#doc_attributes)*
-            #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+            #derives
             pub enum #ident {
                 #(#variants)*
             }

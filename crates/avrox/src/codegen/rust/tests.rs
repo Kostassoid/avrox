@@ -92,6 +92,32 @@ fn generate_err_std(schema: &str) -> String {
     .to_string()
 }
 
+fn generate_with_derives(schema: &str, derives: &[&str]) -> Vec<GeneratedFile> {
+    generate_with(
+        schema,
+        Layout::SingleFile,
+        RustOptions {
+            derives: derives.iter().map(|derive| (*derive).to_owned()).collect(),
+            ..RustOptions::default()
+        },
+    )
+}
+
+fn generate_err_derives(schema: &str, derives: &[&str]) -> String {
+    let document = crate::schema::parse(schema, crate::AvroVersion::V1_12)
+        .unwrap_or_else(|error| panic!("{error}"));
+    generate(
+        &document,
+        Layout::SingleFile,
+        RustOptions {
+            derives: derives.iter().map(|derive| (*derive).to_owned()).collect(),
+            ..RustOptions::default()
+        },
+    )
+    .expect_err("generation should fail")
+    .to_string()
+}
+
 fn module_file<'a>(files: &'a [GeneratedFile], path: &str) -> &'a str {
     let file = files
         .iter()
@@ -613,5 +639,56 @@ fn rejects_reserved_type_names() {
         generate_err(r#"{"type": "record", "name": "option", "fields": []}"#),
         "unsupported schema: type name `Option` (from type `option`) collides with a name \
          used by the generated code"
+    );
+}
+
+const DERIVE_SCHEMA: &str = r#"{"type": "record", "name": "R", "fields": [
+    {"name": "e", "type": {"type": "enum", "name": "E", "symbols": ["A"]}},
+    {"name": "u", "type": ["int", "string"]}
+]}"#;
+
+#[test]
+fn adds_requested_derives_to_generated_data_types() {
+    let files = generate_with_derives(DERIVE_SCHEMA, &["Hash", "derive_more::Display"]);
+    let contents = contents(&files);
+    assert_eq!(
+        contents
+            .matches("#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Hash, derive_more::Display)]")
+            .count(),
+        2,
+        "records and union enums should get both derives:\n{contents}"
+    );
+    assert_eq!(
+        contents.matches("derive_more::Display").count(),
+        3,
+        "the enum should only get the missing derive:\n{contents}"
+    );
+    assert_eq!(
+        contents.matches("Hash").count(),
+        3,
+        "the enum's built-in Hash should not be duplicated:\n{contents}"
+    );
+}
+
+#[test]
+fn ignores_derives_that_are_already_present() {
+    let files = generate_with_derives(DERIVE_SCHEMA, &["Hash", "std::fmt::Debug"]);
+    let contents = contents(&files);
+    assert!(
+        !contents.contains("Hash, Hash"),
+        "duplicate short derive:\n{contents}"
+    );
+    assert!(
+        !contents.contains("Debug, Debug"),
+        "duplicate qualified derive:\n{contents}"
+    );
+}
+
+#[test]
+fn rejects_invalid_derives() {
+    let error = generate_err_derives(DERIVE_SCHEMA, &["not a path"]);
+    assert!(
+        error.starts_with("invalid setting: invalid derive `not a path`:"),
+        "unexpected error: {error}"
     );
 }

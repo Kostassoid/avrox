@@ -19,6 +19,10 @@
 //! underlying integers (the default), [`std::time`] newtypes or `chrono`
 //! newtypes.
 //!
+//! [`RustOptions::derives`] adds derives to generated records, enums and union
+//! enums. Common derives can be given by their short name (`Hash`); derives
+//! from other crates should be fully qualified (`derive_more::Display`).
+//!
 //! # Example
 //!
 //! ```
@@ -71,20 +75,30 @@ impl Default for Settings {
 }
 
 /// Options for Rust code generation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RustOptions {
     /// Which types the generated code uses.
     pub types: RustTypes,
     /// How time-related logical types are represented.
     pub time: RustTime,
+    /// Additional derives to add to generated records, enums and union
+    /// enums.
+    ///
+    /// Common derives can be given by their short name (for example `Hash` or
+    /// `Display`). Derives from other crates should use their fully qualified
+    /// path (for example `derive_more::Display`). Derives that the generated
+    /// types already have are ignored.
+    pub derives: Vec<String>,
 }
 
 impl Default for RustOptions {
-    /// Defaults to [`RustTypes::ApacheAvro`] and [`RustTime::Primitives`].
+    /// Defaults to [`RustTypes::ApacheAvro`], [`RustTime::Primitives`] and no
+    /// additional derives.
     fn default() -> Self {
         Self {
             types: RustTypes::ApacheAvro,
             time: RustTime::Primitives,
+            derives: Vec::new(),
         }
     }
 }

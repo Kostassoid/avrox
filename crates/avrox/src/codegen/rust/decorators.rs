@@ -32,7 +32,7 @@ pub(super) struct Decorators {
 }
 
 impl Decorators {
-    pub(super) fn new(options: RustOptions) -> Self {
+    pub(super) fn new(options: &RustOptions) -> Self {
         let inner: Vec<Box<dyn TypeDecorator>> = vec![
             Box::new(TimeDecorator {
                 setting: options.time,

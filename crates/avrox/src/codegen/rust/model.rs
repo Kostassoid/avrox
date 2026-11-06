@@ -12,7 +12,7 @@ use crate::schema::{Document, FullName, NamedType, Schema};
 use crate::{RustOptions, RustTypes};
 
 use super::union::{UnionInfo, UnionRendering};
-use super::{naming, time, union};
+use super::{derives, naming, time, union};
 
 /// Names used by the generated code itself; schema types mapping to them are
 /// rejected as unsupported.
@@ -64,6 +64,7 @@ pub(super) enum Node {
 pub(super) struct Model<'a> {
     pub(super) document: &'a Document,
     pub(super) options: RustOptions,
+    pub(super) derives: Vec<derives::Derive>,
     pub(super) type_names: HashMap<FullName, String>,
     pub(super) unions: Vec<UnionInfo>,
     union_ids: HashMap<String, usize>,
@@ -72,9 +73,11 @@ pub(super) struct Model<'a> {
 
 impl<'a> Model<'a> {
     pub(super) fn new(document: &'a Document, options: RustOptions) -> Result<Self> {
+        let derives = derives::parse(&options.derives)?;
         let mut model = Self {
             document,
             options,
+            derives,
             type_names: HashMap::new(),
             unions: Vec::new(),
             union_ids: HashMap::new(),

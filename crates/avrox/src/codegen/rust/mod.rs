@@ -23,6 +23,7 @@ use crate::schema::Document;
 use crate::{GeneratedFile, Layout, RustOptions};
 
 mod decorators;
+mod derives;
 mod docs;
 mod emit;
 mod helpers;

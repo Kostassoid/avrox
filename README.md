@@ -77,8 +77,8 @@ exploration) and `write` (record creation).
 
 `generate` takes a schema and writes generated code. Its options include
 `--language` (currently `rust`), `--avro-version` (`1.10`, `1.11` or `1.12`,
-the default), `--rust-types` and `--rust-time`. Exactly one of the two output
-options must be given:
+the default), `--rust-types`, `--rust-time` and `--rust-derive`. Exactly one of
+the two output options must be given:
 
 - `--output-file <FILE>`: single-file layout — everything in one file,
   written to the given path; the file name proposed by the generator is
@@ -108,6 +108,11 @@ options must be given:
   `chrono::NaiveTime`, `chrono::DateTime<Utc>` and `chrono::NaiveDateTime`,
   with `serde` implementations that encode them as the Avro integers of their
   logical types. The consuming crate needs `chrono` 0.4.40 or later.
+- `--rust-derive <DERIVE>` (repeatable, also accepted as `--rust-derives`):
+  adds a derive to generated records, enums and union enums. Common derives
+  can use their short name (`Hash`, `Display`), while derives from other
+  crates should use their fully qualified path (`derive_more::Display`).
+  Derives already emitted by the generator are not added twice.
 
 #### Generated Rust code
 
@@ -186,8 +191,10 @@ let files = avrox::generate(schema_json, &avrox::Settings::default())?;
 ```
 
 `Settings` controls the target language, Avro version, output layout and
-language-specific options. The result is a list of generated files, each
-pairing a relative path with its contents.
+language-specific options. `Settings::default().rust.derives` accepts extra
+derive names or fully qualified paths for generated Rust data types. The
+result is a list of generated files, each pairing a relative path with its
+contents.
 
 ## Contributing
 

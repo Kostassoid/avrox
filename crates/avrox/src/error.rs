@@ -26,6 +26,10 @@ pub enum Error {
     #[error("unsupported schema: {0}")]
     Unsupported(String),
 
+    /// A generator setting is invalid.
+    #[error("invalid setting: {0}")]
+    Setting(String),
+
     /// The generator produced something unexpected; this indicates a bug in
     /// `avrox` itself.
     #[error("internal error: {0}")]

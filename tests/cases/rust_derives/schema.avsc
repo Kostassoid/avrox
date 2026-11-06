@@ -1,0 +1,13 @@
+{
+    "type": "record",
+    "name": "Person",
+    "fields": [
+        {"name": "name", "type": "string"},
+        {"name": "role", "type": {
+            "type": "enum",
+            "name": "Role",
+            "symbols": ["ADMIN", "USER"]
+        }},
+        {"name": "value", "type": ["int", "string"]}
+    ]
+}
