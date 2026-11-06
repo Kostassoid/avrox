@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `avrox-cli extract-schema` subcommand: prints the schema stored in an Avro
   data file (`.avro`) to stdout and nothing else, reading only the file
   header so files of any size can be processed.
+- `avrox-cli read` subcommand: prints the records of an Avro data file as
+  JSON lines for exploration and debugging, with an optional
+  `--human-readable` mode for dates, times, timestamps and durations.
 
 ### Changed
 

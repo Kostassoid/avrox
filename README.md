@@ -20,11 +20,13 @@ language.
 ```sh
 cargo run -p avrox-cli -- generate path/to/schema.avsc --output-file src/gen.rs
 cargo run -p avrox-cli -- generate path/to/schema.avsc --output-dir src/gen
+cargo run -p avrox-cli -- read path/to/data.avro
 cargo run -p avrox-cli -- --help
 ```
 
-The CLI is organized as subcommands: `generate` (code generation, see below)
-and `extract-schema` (schema extraction from data files).
+The CLI is organized as subcommands: `generate` (code generation, see below),
+`extract-schema` (schema extraction from data files) and `read` (record
+exploration).
 `generate`'s options include `--language` (currently `rust`), `--avro-version`
 (`1.10`, `1.11` or `1.12`, the default), `--rust-types` and `--rust-time`.
 Exactly one of the two output options must be given:
@@ -69,6 +71,21 @@ cargo run -p avrox-cli -- extract-schema path/to/data.avro > schema.avsc
 It stops reading as soon as it has reached the schema, so data files of any
 size work. The output is byte-identical to the schema as stored in the file.
 Non-container files are rejected.
+
+`read` prints every record of an Avro data file as JSON, one record per line:
+
+```sh
+cargo run -p avrox-cli -- read path/to/data.avro
+cargo run -p avrox-cli -- read --human-readable path/to/data.avro
+```
+
+The output is meant for exploration and debugging, so some Avro details are
+flattened: union branches are unwrapped, enums print their symbol, UUIDs print
+as strings, big decimals print as strings, and bytes, fixed and decimal values
+print as arrays of numbers. Time-related logical types print their underlying
+integers by default and durations print as `{"months", "days", "millis"}`
+objects; `--human-readable` renders dates as ISO 8601 dates, times and
+timestamps as ISO 8601 date-times and durations as ISO 8601 durations instead.
 
 From Rust:
 

@@ -2,6 +2,7 @@
 
 pub(crate) mod extract_schema;
 pub(crate) mod generate;
+pub(crate) mod read;
 
 use anyhow::Result;
 
@@ -12,5 +13,6 @@ pub(crate) fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Commands::Generate(args) => generate::run(&args),
         Commands::ExtractSchema(args) => extract_schema::run(&args),
+        Commands::Read(args) => read::run(&args),
     }
 }
