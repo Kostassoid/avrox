@@ -107,10 +107,13 @@ the two output options must be given:
   `std::time::SystemTime` and times-of-day newtypes wrapping
   `std::time::Duration`; `date` has no standard library representation and
   stays an `i32`. Needs no extra dependencies;
-- `--rust-time chrono`: newtypes wrapping `chrono::NaiveDate`,
-  `chrono::NaiveTime`, `chrono::DateTime<Utc>` and `chrono::NaiveDateTime`,
-  with `serde` implementations that encode them as the Avro integers of their
-  logical types. The consuming crate needs `chrono` 0.4.40 or later.
+- `--rust-time chrono`: time-related logical types become bare
+  `chrono::NaiveDate`, `chrono::NaiveTime`, `chrono::DateTime<Utc>` and
+  `chrono::NaiveDateTime`, with field-level `serde` adapters that encode them
+  as the Avro integers of their logical types. The consuming crate needs
+  `chrono` 0.4.40 or later with the `serde` feature enabled. Logical types
+  nested inside arrays or maps still use generated newtypes, because `serde`
+  cannot attach field attributes to collection elements.
 - `--rust-derive <DERIVE>` (repeatable, also accepted as `--rust-derives`):
   adds a derive to generated records, enums and union enums. Common derives
   can use their short name (`Hash`, `Display`), while derives from other

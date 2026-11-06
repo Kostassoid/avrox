@@ -107,6 +107,7 @@ pub(super) struct FileContext {
     /// which re-exports every generated type instead.
     references: Option<BTreeSet<String>>,
     imports: BTreeSet<Import>,
+    time_helpers: BTreeSet<time::Helper>,
 }
 
 impl FileContext {
@@ -116,6 +117,7 @@ impl FileContext {
             own_name: None,
             references: None,
             imports: BTreeSet::new(),
+            time_helpers: BTreeSet::new(),
         }
     }
 
@@ -125,11 +127,17 @@ impl FileContext {
             own_name: Some(own_name),
             references: Some(BTreeSet::new()),
             imports: BTreeSet::new(),
+            time_helpers: BTreeSet::new(),
         }
     }
 
     pub(super) fn needs(&mut self, import: Import) {
         self.imports.insert(import);
+    }
+
+    /// Records a generated time serde helper referenced by this file.
+    pub(super) fn needs_time_helper(&mut self, helper: time::Helper) {
+        self.time_helpers.insert(helper);
     }
 
     /// Records a generated helper referenced by this file.
@@ -172,7 +180,7 @@ fn render_single_file(
     if model.options.types == RustTypes::Std && helpers::uses_bytes(model.document) {
         items.push(helpers::bytes_type());
     }
-    for wrapper in time::used_wrappers(model.document, model.options.time) {
+    for wrapper in model.time.used_wrappers(model.document) {
         items.push(time::render(&wrapper));
     }
     for named in &model.document.types {
@@ -182,6 +190,9 @@ fn render_single_file(
         if union.name.is_some() {
             items.push(renderer.render_union_enum(id, &mut context)?);
         }
+    }
+    if let Some(module) = time::helper_module(&context.time_helpers) {
+        items.insert(0, module);
     }
     let imports = imports(&context);
     assemble(output_path(model.document), header, &imports, &items).map(|file| vec![file])
@@ -207,7 +218,7 @@ fn render_module(
         mod_decls.push(quote! { pub mod bytes; });
         re_exports.push(quote! { pub use bytes::Bytes; });
     }
-    let time_wrappers = time::used_wrappers(model.document, model.options.time);
+    let time_wrappers = model.time.used_wrappers(model.document);
     if !time_wrappers.is_empty() {
         let items: Vec<TokenStream> = time_wrappers.iter().map(time::render).collect();
         files.push(assemble("time.rs".to_owned(), header, &[], &items)?);
@@ -230,7 +241,12 @@ fn render_module(
         let mut context = FileContext::child(rust_name);
         let item = renderer.render_named(named, &mut context)?;
         let imports = imports(&context);
-        files.push(assemble(format!("{stem}.rs"), header, &imports, &[item])?);
+        let mut items = Vec::new();
+        if let Some(module) = time::helper_module(&context.time_helpers) {
+            items.push(module);
+        }
+        items.push(item);
+        files.push(assemble(format!("{stem}.rs"), header, &imports, &items)?);
         mod_decls.push(quote! { pub mod #stem_ident; });
         re_exports.push(quote! { pub use #stem_ident::#type_ident; });
     }
@@ -242,12 +258,14 @@ fn render_module(
         }
     }
     let imports = imports(&context);
+    let helper = time::helper_module(&context.time_helpers);
     let docs = header_docs(header);
     let tokens = quote! {
         #(#docs)*
         #(#mod_decls)*
         #(#imports)*
         #(#re_exports)*
+        #helper
         #(#unions)*
     };
     let file = assemble_tokens("mod.rs".to_owned(), tokens)?;

@@ -2,10 +2,9 @@
 
 use std::collections::HashMap;
 
-use crate::RustTime;
 use crate::schema::{FullName, Schema};
 
-use super::time;
+use super::time::Time;
 
 /// A union registered while walking the schema.
 pub(super) struct UnionInfo {
@@ -61,7 +60,7 @@ pub(super) fn rendering(branches: &[Schema]) -> UnionRendering {
 pub(super) fn display_name(
     schema: &Schema,
     type_names: &HashMap<FullName, String>,
-    time_setting: RustTime,
+    time: Time,
 ) -> String {
     match schema {
         Schema::Null => "Null".to_owned(),
@@ -76,9 +75,9 @@ pub(super) fn display_name(
         Schema::Array(_) => "Array".to_owned(),
         Schema::Map(_) => "Map".to_owned(),
         Schema::Union(_) => "Union".to_owned(),
-        Schema::Logical { kind, base, .. } => match time::wrapper(time_setting, *kind) {
-            Some(wrapper) => wrapper.name.to_owned(),
-            None => display_name(base, type_names, time_setting),
+        Schema::Logical { kind, base, .. } => match time.display_name(*kind) {
+            Some(name) => name.to_owned(),
+            None => display_name(base, type_names, time),
         },
     }
 }
@@ -86,10 +85,10 @@ pub(super) fn display_name(
 pub(super) fn display_names(
     branches: &[Schema],
     type_names: &HashMap<FullName, String>,
-    time_setting: RustTime,
+    time: Time,
 ) -> Vec<String> {
     branches
         .iter()
-        .map(|branch| display_name(branch, type_names, time_setting))
+        .map(|branch| display_name(branch, type_names, time))
         .collect()
 }

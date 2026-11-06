@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `--rust-time chrono` now maps time-related logical types to their bare
+  `chrono` types (`NaiveDate`, `NaiveTime`, `DateTime<Utc>`,
+  `NaiveDateTime`) and attaches field-level `serde` adapters instead of
+  generating wrapper newtypes. This removes the extra boilerplate and keeps
+  the generated domain types clean. Logical types nested inside arrays or
+  maps still use generated newtypes because `serde` cannot attach field
+  attributes to collection elements.
+
 ## [1.4.1] - 2026-11-06
 
 ### Added

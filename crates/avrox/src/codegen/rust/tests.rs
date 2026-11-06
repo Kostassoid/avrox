@@ -388,39 +388,46 @@ fn std_time_mode_wraps_times_in_std_types() {
 }
 
 #[test]
-fn chrono_mode_wraps_times_in_chrono_types() {
+fn chrono_mode_uses_bare_chrono_types() {
     let contents = contents_of_time(TIME_SCHEMA, RustTime::Chrono);
-    assert!(contents.contains("pub date: Date,"));
-    assert!(contents.contains("pub struct Date(pub chrono::NaiveDate);"));
-    assert!(contents.contains("pub time_millis: TimeMillis,"));
-    assert!(contents.contains("pub struct TimeMillis(pub chrono::NaiveTime);"));
-    assert!(
-        contents.contains("pub struct TimestampMillis(pub chrono::DateTime<chrono::Utc>);"),
-        "missing wrapper:\n{contents}"
-    );
-    assert!(contents.contains("pub local_nanos: LocalTimestampNanos,"));
-    assert!(contents.contains("pub struct LocalTimestampNanos(pub chrono::NaiveDateTime);"));
-    assert!(contents.contains("pub optional: Option<TimestampMicros>,"));
-    assert!(contents.contains("pub enum TimestampNanosOrString {"));
-    assert!(contents.contains("impl From<chrono::NaiveDate> for Date"));
-    assert!(contents.contains("chrono::Timelike::hour(&self.0)"));
+    assert!(contents.contains("pub date: chrono::NaiveDate,"));
+    assert!(contents.contains("pub time_millis: chrono::NaiveTime,"));
+    assert!(contents.contains("pub timestamp: chrono::DateTime<chrono::Utc>,"));
+    assert!(contents.contains("pub local_nanos: chrono::NaiveDateTime,"));
+    assert!(contents.contains("pub optional: Option<chrono::DateTime<chrono::Utc>>,"));
+    assert!(contents.contains("pub enum DateTimeOrString {"));
+    assert!(contents.contains("DateTime(chrono::DateTime<chrono::Utc>)"));
+    assert!(contents.contains(r#"#[serde(with = "chrono::serde::ts_milliseconds")]"#));
+    assert!(contents.contains(r#"#[serde(with = "chrono::serde::ts_microseconds_option")]"#));
+    assert!(contents.contains(r#"#[serde(with = "chrono::naive::serde::ts_nanoseconds")]"#));
+    assert!(contents.contains(r#"#[serde(with = "__avrox_time::date")]"#));
+    assert!(contents.contains("mod __avrox_time {"));
+    assert!(contents.contains("pub(crate) mod time_millis {"));
+    assert!(!contents.contains("pub struct TimestampMillis"));
+    assert!(!contents.contains("pub struct Date"));
     assert!(!contents.contains("std::time"));
 }
 
 #[test]
 fn time_modes_reject_colliding_type_names() {
-    let files = generate_ok(r#"{"type": "record", "name": "TimestampMillis", "fields": []}"#);
+    let timestamp = r#"{"type": "record", "name": "TimestampMillis", "fields": [
+        {"name": "ts", "type": {"type": "long", "logicalType": "timestamp-millis"}}
+    ]}"#;
+    assert_eq!(
+        generate_err_time(timestamp, RustTime::StdTime),
+        "unsupported schema: type name `TimestampMillis` (from type \
+         `TimestampMillis`) collides with a name used by the generated code"
+    );
+    let files = generate_with_time(timestamp, RustTime::Chrono);
     assert_eq!(files.len(), 1);
-    for time in [RustTime::StdTime, RustTime::Chrono] {
-        assert_eq!(
-            generate_err_time(
-                r#"{"type": "record", "name": "TimestampMillis", "fields": []}"#,
-                time
-            ),
-            "unsupported schema: type name `TimestampMillis` (from type \
-             `TimestampMillis`) collides with a name used by the generated code"
-        );
-    }
+
+    let nested = r#"{"type": "record", "name": "TimestampMillis", "fields": [
+        {"name": "ts", "type": {"type": "array", "items": {
+            "type": "long", "logicalType": "timestamp-millis"
+        }}}
+    ]}"#;
+    assert!(generate_err_time(nested, RustTime::Chrono).contains("type name `TimestampMillis`"));
+
     assert!(
         generate_err_time(
             r#"{"type": "record", "name": "Time", "fields": []}"#,
@@ -428,19 +435,65 @@ fn time_modes_reject_colliding_type_names() {
         )
         .contains("type name `Time`")
     );
-    assert!(
-        generate_err_time(
-            r#"{"type": "record", "name": "Date", "fields": []}"#,
-            RustTime::Chrono
-        )
-        .contains("type name `Date`")
+    let files = generate_with_time(
+        r#"{"type": "record", "name": "Date", "fields": []}"#,
+        RustTime::Chrono,
     );
-    let files = generate_ok(r#"{"type": "record", "name": "Date", "fields": []}"#);
     assert_eq!(files.len(), 1);
+
+    let nested_date = r#"{"type": "record", "name": "Date", "fields": [
+        {"name": "dates", "type": {"type": "array", "items": {
+            "type": "int", "logicalType": "date"
+        }}}
+    ]}"#;
+    assert!(generate_err_time(nested_date, RustTime::Chrono).contains("type name `Date`"));
 }
 
 #[test]
-fn chrono_module_layout_gets_a_time_file() {
+fn chrono_nested_logical_types_use_wrappers() {
+    let contents = contents_of_time(
+        r#"{"type": "record", "name": "N", "fields": [
+            {"name": "dates", "type": {"type": "array", "items": {
+                "type": "int", "logicalType": "date"
+            }}},
+            {"name": "times", "type": {"type": "map", "values": {
+                "type": "long", "logicalType": "timestamp-micros"
+            }}}
+        ]}"#,
+        RustTime::Chrono,
+    );
+    assert!(contents.contains("pub struct Date(pub chrono::NaiveDate);"));
+    assert!(contents.contains("pub dates: Vec<Date>,"));
+    assert!(contents.contains("pub struct TimestampMicros(pub chrono::DateTime<chrono::Utc>);"));
+    assert!(contents.contains("pub times: HashMap<String, TimestampMicros>,"));
+    assert!(!contents.contains(r#"#[serde(with = "__avrox_time::date")]"#));
+}
+
+#[test]
+fn chrono_union_enum_uses_helpers_in_module_layout() {
+    let files = generate_with(
+        r#"{"type": "record", "name": "U", "fields": [
+            {"name": "d", "type": [
+                {"type": "int", "logicalType": "date"},
+                "string"
+            ]}
+        ]}"#,
+        Layout::Module,
+        RustOptions {
+            time: RustTime::Chrono,
+            ..RustOptions::default()
+        },
+    );
+    let mod_rs = module_file(&files, "mod.rs");
+    assert!(mod_rs.contains("mod __avrox_time {"));
+    assert!(mod_rs.contains("pub(crate) mod date {"));
+    assert!(mod_rs.contains("pub enum NaiveDateOrString {"));
+    assert!(mod_rs.contains(r#"#[serde(with = "__avrox_time::date")]"#));
+    assert!(mod_rs.contains("NaiveDate(chrono::NaiveDate)"));
+}
+
+#[test]
+fn chrono_module_layout_uses_local_helpers() {
     let files = generate_with(
         TIME_SCHEMA,
         Layout::Module,
@@ -450,35 +503,18 @@ fn chrono_module_layout_gets_a_time_file() {
         },
     );
     let paths: Vec<&str> = files.iter().map(|file| file.path.as_str()).collect();
-    assert_eq!(paths, ["mod.rs", "time.rs", "t.rs"]);
+    assert_eq!(paths, ["mod.rs", "t.rs"]);
     let mod_rs = module_file(&files, "mod.rs");
-    assert!(mod_rs.contains("pub mod time;"));
-    assert!(mod_rs.contains("pub use time::{"));
-    for name in [
-        "Date",
-        "TimeMillis",
-        "TimestampMillis",
-        "TimestampMicros",
-        "TimestampNanos",
-        "LocalTimestampNanos",
-    ] {
-        assert!(mod_rs.contains(name), "missing `{name}` in:\n{mod_rs}");
-    }
     assert!(mod_rs.contains("pub use t::T;"));
-    assert!(module_file(&files, "time.rs").contains("pub struct Date(pub chrono::NaiveDate);"));
+    assert!(mod_rs.contains("pub enum DateTimeOrString {"));
+    assert!(!mod_rs.contains("pub mod time;"));
     let record = module_file(&files, "t.rs");
-    assert!(record.contains("use super::{"));
-    for name in [
-        "Date",
-        "TimeMillis",
-        "TimestampMillis",
-        "TimestampNanos",
-        "TimestampNanosOrString",
-    ] {
-        assert!(record.contains(name), "missing `{name}` in:\n{record}");
-    }
-    assert!(record.contains("pub date: Date,"));
-    assert!(!record.contains("chrono::"));
+    assert!(record.contains("mod __avrox_time {"));
+    assert!(record.contains("pub(crate) mod date {"));
+    assert!(record.contains("pub date: chrono::NaiveDate,"));
+    assert!(record.contains(r#"#[serde(with = "__avrox_time::date")]"#));
+    assert!(record.contains(r#"#[serde(with = "chrono::serde::ts_milliseconds")]"#));
+    assert!(!record.contains("pub struct Date"));
 }
 
 #[test]

@@ -64,6 +64,7 @@ pub(super) enum Node {
 pub(super) struct Model<'a> {
     pub(super) document: &'a Document,
     pub(super) options: RustOptions,
+    pub(super) time: time::Time,
     pub(super) derives: Vec<derives::Derive>,
     pub(super) type_names: HashMap<FullName, String>,
     pub(super) unions: Vec<UnionInfo>,
@@ -74,9 +75,11 @@ pub(super) struct Model<'a> {
 impl<'a> Model<'a> {
     pub(super) fn new(document: &'a Document, options: RustOptions) -> Result<Self> {
         let derives = derives::parse(&options.derives)?;
+        let time = time::Time::new(options.time);
         let mut model = Self {
             document,
             options,
+            time,
             derives,
             type_names: HashMap::new(),
             unions: Vec::new(),
@@ -103,7 +106,10 @@ impl<'a> Model<'a> {
             let rust_name = naming::to_upper_camel_case(&named.name().name);
             if RESERVED_NAMES.contains(&rust_name.as_str())
                 || (self.options.types == RustTypes::Std && rust_name == "Bytes")
-                || time::reserved_names(self.options.time).contains(&rust_name.as_str())
+                || self
+                    .time
+                    .reserved_names(self.document)
+                    .contains(&rust_name.as_str())
             {
                 return Err(Error::Unsupported(format!(
                     "type name `{rust_name}` (from type `{}`) collides with a name used by \
@@ -168,8 +174,7 @@ impl<'a> Model<'a> {
         }
         let name = match union::rendering(branches) {
             UnionRendering::Enum => {
-                let base =
-                    union::display_names(branches, &self.type_names, self.options.time).join("Or");
+                let base = union::display_names(branches, &self.type_names, self.time).join("Or");
                 Some(self.unique_name(&base))
             }
             _ => None,

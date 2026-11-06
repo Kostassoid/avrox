@@ -74,6 +74,7 @@ impl<'model, 'document> Renderer<'model, 'document> {
         let (ident, escaped) = naming::make_ident(&snake);
         let ty = self.render_type(&field.schema, Some(Node::Type(record.clone())), context)?;
         let doc = docs::attributes(field.doc.as_deref(), docs::logical_lines(&field.schema));
+        let with = self.serde_with(&field.schema, context);
         let name = &field.name;
         let rename = if escaped || snake != *name {
             quote! { #[serde(rename = #name)] }
@@ -83,8 +84,22 @@ impl<'model, 'document> Renderer<'model, 'document> {
         Ok(quote! {
             #(#doc)*
             #rename
+            #with
             pub #ident: #ty,
         })
+    }
+
+    /// The `serde(with = "...")` attribute a field needs for a time logical
+    /// type, if the current settings render it as a bare domain type.
+    fn serde_with(&self, schema: &Schema, context: &mut FileContext) -> TokenStream {
+        let Some(with) = self.model.time.serde_with(schema) else {
+            return quote! {};
+        };
+        if let Some(helper) = with.helper {
+            context.needs_time_helper(helper);
+        }
+        let path = with.path;
+        quote! { #[serde(with = #path)] }
     }
 
     fn render_enum(&self, enum_: &Enum, context: &mut FileContext) -> TokenStream {
@@ -158,19 +173,22 @@ impl<'model, 'document> Renderer<'model, 'document> {
         let mut used: HashSet<String> = HashSet::new();
         let mut variants = Vec::with_capacity(union_info.branches.len());
         for branch in &union_info.branches {
-            let display =
-                union::display_name(branch, &self.model.type_names, self.model.options.time);
+            let display = union::display_name(branch, &self.model.type_names, self.model.time);
             let variant_name = unique_variant_name(&display, &mut used);
             let (variant, _) = naming::make_ident(&variant_name);
             let ty = self.render_type(branch, Some(Node::Union(id)), context)?;
-            variants.push(quote! { #variant(#ty), });
+            let with = self.serde_with(branch, context);
+            variants.push(quote! {
+                #with
+                #variant(#ty),
+            });
         }
         let doc = format!(
             " Avro union of {}.",
             union::display_names(
                 &union_info.branches,
                 &self.model.type_names,
-                self.model.options.time,
+                self.model.time,
             )
             .into_iter()
             .map(|name| format!("`{name}`"))
@@ -200,7 +218,10 @@ impl<'model, 'document> Renderer<'model, 'document> {
         container: Option<Node>,
         context: &mut FileContext,
     ) -> Result<TokenStream> {
-        if let Some(tokens) = self.decorators.apply(schema, self.model, context) {
+        if let Some(tokens) =
+            self.decorators
+                .apply(schema, self.model, context, container.is_some())
+        {
             return Ok(tokens);
         }
         match schema {

@@ -8,7 +8,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use crate::RustTime;
 use crate::schema::{Document, FullName, LogicalType, NamedType, Schema};
 use crate::{RustOptions, RustTypes};
 
@@ -23,6 +22,7 @@ trait TypeDecorator {
         schema: &Schema,
         model: &Model<'_>,
         context: &mut FileContext,
+        direct: bool,
     ) -> Option<TokenStream>;
 }
 
@@ -35,7 +35,7 @@ impl Decorators {
     pub(super) fn new(options: &RustOptions) -> Self {
         let inner: Vec<Box<dyn TypeDecorator>> = vec![
             Box::new(TimeDecorator {
-                setting: options.time,
+                time: time::Time::new(options.time),
             }),
             Box::new(RepresentationDecorator {
                 setting: options.types,
@@ -49,9 +49,10 @@ impl Decorators {
         schema: &Schema,
         model: &Model<'_>,
         context: &mut FileContext,
+        direct: bool,
     ) -> Option<TokenStream> {
         for decorator in &self.inner {
-            if let Some(tokens) = decorator.decorate(schema, model, context) {
+            if let Some(tokens) = decorator.decorate(schema, model, context, direct) {
                 return Some(tokens);
             }
         }
@@ -59,9 +60,9 @@ impl Decorators {
     }
 }
 
-/// Replaces time-related logical types with their configured wrapper newtypes.
+/// Replaces time-related logical types with their configured representation.
 struct TimeDecorator {
-    setting: RustTime,
+    time: time::Time,
 }
 
 impl TypeDecorator for TimeDecorator {
@@ -70,11 +71,15 @@ impl TypeDecorator for TimeDecorator {
         schema: &Schema,
         _model: &Model<'_>,
         context: &mut FileContext,
+        direct: bool,
     ) -> Option<TokenStream> {
         let Schema::Logical { kind, .. } = schema else {
             return None;
         };
-        let wrapper = time::wrapper(self.setting, *kind)?;
+        if direct && let Some(tokens) = self.time.direct_type(*kind) {
+            return Some(tokens);
+        }
+        let wrapper = self.time.wrapper_for_position(*kind, false)?;
         context.reference(wrapper.name);
         let (ident, _) = naming::make_ident(wrapper.name);
         Some(quote!(#ident))
@@ -120,6 +125,7 @@ impl TypeDecorator for RepresentationDecorator {
         schema: &Schema,
         model: &Model<'_>,
         context: &mut FileContext,
+        _direct: bool,
     ) -> Option<TokenStream> {
         match schema {
             Schema::Bytes => Some(self.bytes(context)),

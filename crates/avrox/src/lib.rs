@@ -16,8 +16,8 @@
 //! into the output. Both round-trip through `apache-avro`'s binary codec.
 //!
 //! [`RustTime`] controls how time-related logical types are represented:
-//! underlying integers (the default), [`std::time`] newtypes or `chrono`
-//! newtypes.
+//! underlying integers (the default), [`std::time`] newtypes or bare `chrono`
+//! types with `serde` adapters.
 //!
 //! [`RustOptions::derives`] adds derives to generated records, enums and union
 //! enums. Common derives can be given by their short name (`Hash`); derives
@@ -337,10 +337,13 @@ pub enum RustTime {
     /// [`std::time::Duration`]. `date` has no standard library
     /// representation and stays an `i32`. Needs no extra dependencies.
     StdTime,
-    /// [`chrono`]: newtypes wrapping [`chrono::NaiveDate`],
-    /// [`chrono::NaiveTime`], [`chrono::DateTime`] and
-    /// [`chrono::NaiveDateTime`]. The consuming crate needs `chrono` 0.4.32
-    /// or later.
+    /// [`chrono`]: time-related logical types keep their natural domain types
+    /// ([`chrono::NaiveDate`], [`chrono::NaiveTime`], [`chrono::DateTime`] and
+    /// [`chrono::NaiveDateTime`]) with field-level `serde` adapters that encode
+    /// them as the Avro integers of their logical types. Logical types nested
+    /// inside arrays or maps use generated newtypes because `serde` cannot
+    /// attach field attributes to collection elements. The consuming crate
+    /// needs `chrono` 0.4.40 or later with the `serde` feature enabled.
     Chrono,
 }
 
