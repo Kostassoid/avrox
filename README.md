@@ -29,8 +29,9 @@ Known limitations:
   `apache_avro::Uuid` serializes as bytes in binary mode, which a string-based
   uuid schema rejects;
 - `read` and `write` focus on exploration and debugging: union branches are
-  flattened, bytes/fixed/decimal values use byte arrays, BigDecimal values use
-  strings, and not every detail of Avro's JSON encoding is implemented.
+  flattened, bytes and fixed values use byte arrays, decimal and BigDecimal
+  values use strings, and not every detail of Avro's JSON encoding is
+  implemented.
 
 ## CLI
 
@@ -167,11 +168,12 @@ avrox-cli read --human-readable path/to/data.avro
 
 The output is meant mostly for exploration and debugging, so some Avro details are
 flattened: union branches are unwrapped, enums print their symbol, UUIDs print
-as strings, big decimals print as strings, and bytes, fixed and decimal values
-print as arrays of numbers. Time-related logical types print their underlying
-integers by default and durations print as `{"months", "days", "millis"}`
-objects; `--human-readable` renders dates as ISO 8601 dates, times and
-timestamps as ISO 8601 date-times and durations as ISO 8601 durations instead.
+as strings, decimals and big decimals print as strings, and bytes and fixed
+values print as arrays of numbers. Time-related logical types print their
+underlying integers by default and durations print as
+`{"months", "days", "millis"}` objects; `--human-readable` renders dates as
+ISO 8601 dates, times and timestamps as ISO 8601 date-times and durations as
+ISO 8601 durations instead.
 
 ### Write records
 

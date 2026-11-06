@@ -151,7 +151,7 @@ impl Converter<'_, '_> {
             Schema::Record(record) => self.record(json, record, enclosing, path, human_readable),
             Schema::Enum(enum_schema) => enum_value(json, &enum_schema.symbols, path),
             Schema::Fixed(fixed) => fixed_value(json, fixed.size, path),
-            Schema::Decimal(_) => Ok(Value::Decimal(Decimal::from(bytes_from_json(json, path)?))),
+            Schema::Decimal(decimal) => decimal_value(json, decimal.scale, path),
             Schema::BigDecimal => big_decimal_value(json, path),
             Schema::Uuid(_) => uuid_value(json, path),
             Schema::Date => date_value(json, path, human_readable),
@@ -420,6 +420,27 @@ fn enum_value(json: &Json, symbols: &[String], path: &str) -> Result<Value> {
         })?;
     let index = u32::try_from(index).expect("enums fit into `u32`");
     Ok(Value::Enum(index, symbol.to_owned()))
+}
+
+fn decimal_value(json: &Json, scale: usize, path: &str) -> Result<Value> {
+    let decimal = match json {
+        Json::Array(_) => Decimal::from(bytes_from_json(json, path)?),
+        Json::String(text) => {
+            let parsed = text
+                .parse::<BigDecimal>()
+                .map_err(|error| anyhow!("{path}: invalid decimal `{text}`: {error}"))?;
+            let target = i64::try_from(scale)
+                .map_err(|_| anyhow!("{path}: the schema scale is out of range"))?;
+            let adjusted = parsed.with_scale(target);
+            if adjusted != parsed {
+                bail!("{path}: decimal `{text}` has more fractional digits than the scale {scale}");
+            }
+            let (unscaled, _) = adjusted.into_bigint_and_scale();
+            Decimal::from(unscaled.to_signed_bytes_be())
+        }
+        _ => return Err(type_error(path, "a decimal string or a byte array", json)),
+    };
+    Ok(Value::Decimal(decimal))
 }
 
 fn big_decimal_value(json: &Json, path: &str) -> Result<Value> {
@@ -868,6 +889,30 @@ mod tests {
                     Value::BigDecimal("123.45".parse().expect("valid decimal"))
                 ),
             ])
+        );
+    }
+
+    #[test]
+    fn converts_decimal_strings() {
+        let schema =
+            parse_schema(r#"{"type":"bytes","logicalType":"decimal","precision":4,"scale":2}"#);
+        assert_eq!(
+            convert(&schema, &json!("12.34"), false).unwrap(),
+            Value::Decimal(Decimal::from(vec![0x04, 0xD2]))
+        );
+        assert_eq!(
+            convert(&schema, &json!("-12.34"), false).unwrap(),
+            Value::Decimal(Decimal::from(vec![0xFB, 0x2E]))
+        );
+        assert_eq!(
+            convert(&schema, &json!("12.340"), false).unwrap(),
+            Value::Decimal(Decimal::from(vec![0x04, 0xD2]))
+        );
+
+        let error = convert(&schema, &json!("12.345"), false).unwrap_err();
+        assert!(
+            format!("{error:#}").contains("more fractional digits than the scale 2"),
+            "unexpected error: {error:#}"
         );
     }
 

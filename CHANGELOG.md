@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `avrox-cli read` now renders `decimal` values as exact decimal strings using
+  the schema scale instead of arrays of bytes, and `avrox-cli write` accepts
+  those strings alongside the previous byte-array form.
 - `--rust-time chrono` now maps time-related logical types to their bare
   `chrono` types (`NaiveDate`, `NaiveTime`, `DateTime<Utc>`,
   `NaiveDateTime`) and attaches field-level `serde` adapters instead of

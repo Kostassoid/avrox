@@ -2,6 +2,7 @@
 //! one record per line.
 
 use std::{
+    collections::HashMap,
     fmt::Write as _,
     fs::File,
     io::{self, BufReader, BufWriter, Write},
@@ -9,7 +10,11 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use apache_avro::{Duration, Reader, types::Value};
+use apache_avro::{
+    BigDecimal, Decimal, Duration, Reader,
+    schema::{NamesRef, ResolvedSchema, Schema},
+    types::Value,
+};
 use chrono::{DateTime, NaiveTime, SecondsFormat, Utc};
 use serde_json::{Map, Value as Json};
 
@@ -46,9 +51,16 @@ fn write_records<R: io::Read, W: io::Write>(
     out: &mut W,
 ) -> Result<()> {
     let reader = Reader::new(reader).context("failed to read the Avro file header")?;
+    let schema = reader.writer_schema().clone();
+    let resolved =
+        ResolvedSchema::try_from(&schema).context("failed to resolve schema references")?;
+    let converter = JsonConverter {
+        names: resolved.get_names(),
+        human_readable,
+    };
     for record in reader {
         let record = record.context("failed to read an Avro record")?;
-        let json = value_to_json(&record, human_readable);
+        let json = converter.convert(&record, Some(&schema), None);
         serde_json::to_writer(&mut *out, &json).context("failed to serialize a record to JSON")?;
         out.write_all(b"\n")
             .context("failed to write a record to stdout")?;
@@ -56,88 +68,184 @@ fn write_records<R: io::Read, W: io::Write>(
     Ok(())
 }
 
-/// Converts an Avro value to JSON. Types JSON cannot represent are rendered as
-/// the closest lossless approximation: bytes, fixed and decimal values become
-/// arrays of byte values, big decimals become strings, and union branches are
-/// unwrapped because their index is not meaningful outside the schema.
-fn value_to_json(value: &Value, human_readable: bool) -> Json {
-    match value {
-        Value::Null => Json::Null,
-        Value::Boolean(value) => Json::Bool(*value),
-        Value::Int(value) => Json::from(*value),
-        Value::Long(value) => Json::from(*value),
-        Value::Float(value) => number(f64::from(*value)),
-        Value::Double(value) => number(*value),
-        Value::Bytes(bytes) | Value::Fixed(_, bytes) => bytes_to_json(bytes),
-        Value::String(value) => Json::String(value.clone()),
-        Value::Enum(_, symbol) => Json::String(symbol.clone()),
-        Value::Union(_, value) => value_to_json(value, human_readable),
-        Value::Array(values) => Json::Array(
+/// Converts Avro values to JSON. Types JSON cannot represent are rendered as
+/// the closest lossless approximation: bytes and fixed values become arrays of
+/// byte values, decimal and big decimal values become strings, and union
+/// branches are unwrapped because their index is not meaningful outside the
+/// schema.
+struct JsonConverter<'n, 's> {
+    names: &'n NamesRef<'s>,
+    human_readable: bool,
+}
+
+impl<'s> JsonConverter<'_, 's> {
+    fn convert(&self, value: &Value, schema: Option<&'s Schema>, enclosing: Option<&str>) -> Json {
+        let schema = schema.map(|schema| resolve_schema(schema, self.names, enclosing));
+        let enclosing = match schema {
+            Some(Schema::Record(record)) => record.name.namespace().or(enclosing),
+            _ => enclosing,
+        };
+        match value {
+            Value::Null => Json::Null,
+            Value::Boolean(value) => Json::Bool(*value),
+            Value::Int(value) => Json::from(*value),
+            Value::Long(value) => Json::from(*value),
+            Value::Float(value) => number(f64::from(*value)),
+            Value::Double(value) => number(*value),
+            Value::Bytes(bytes) | Value::Fixed(_, bytes) => bytes_to_json(bytes),
+            Value::String(value) => Json::String(value.clone()),
+            Value::Enum(_, symbol) => Json::String(symbol.clone()),
+            Value::Union(index, value) => {
+                let variant = match schema {
+                    Some(Schema::Union(union)) => union.variants().get(*index as usize),
+                    _ => None,
+                };
+                self.convert(value, variant, enclosing)
+            }
+            Value::Array(values) => self.array(values, schema, enclosing),
+            Value::Map(entries) => self.map(entries, schema, enclosing),
+            Value::Record(fields) => self.record(fields, schema, enclosing),
+            Value::Date(days) => {
+                human_readable_json(self.human_readable, date(*days), Json::from(*days))
+            }
+            Value::Decimal(decimal) => Json::String(decimal_to_string(decimal, schema)),
+            Value::BigDecimal(decimal) => Json::String(decimal.to_string()),
+            Value::TimeMillis(millis) => human_readable_json(
+                self.human_readable,
+                time_millis(*millis),
+                Json::from(*millis),
+            ),
+            Value::TimeMicros(micros) => human_readable_json(
+                self.human_readable,
+                time_micros(*micros),
+                Json::from(*micros),
+            ),
+            Value::TimestampMillis(millis) => human_readable_json(
+                self.human_readable,
+                timestamp_millis(*millis),
+                Json::from(*millis),
+            ),
+            Value::TimestampMicros(micros) => human_readable_json(
+                self.human_readable,
+                timestamp_micros(*micros),
+                Json::from(*micros),
+            ),
+            Value::TimestampNanos(nanos) => human_readable_json(
+                self.human_readable,
+                Some(timestamp_nanos(*nanos)),
+                Json::from(*nanos),
+            ),
+            Value::LocalTimestampMillis(millis) => human_readable_json(
+                self.human_readable,
+                local_timestamp_millis(*millis),
+                Json::from(*millis),
+            ),
+            Value::LocalTimestampMicros(micros) => human_readable_json(
+                self.human_readable,
+                local_timestamp_micros(*micros),
+                Json::from(*micros),
+            ),
+            Value::LocalTimestampNanos(nanos) => human_readable_json(
+                self.human_readable,
+                Some(local_timestamp_nanos(*nanos)),
+                Json::from(*nanos),
+            ),
+            Value::Duration(duration) => {
+                if self.human_readable {
+                    Json::String(format_duration(duration))
+                } else {
+                    duration_to_json(duration)
+                }
+            }
+            Value::Uuid(uuid) => Json::String(uuid.to_string()),
+        }
+    }
+
+    fn array(&self, values: &[Value], schema: Option<&'s Schema>, enclosing: Option<&str>) -> Json {
+        let items = match schema {
+            Some(Schema::Array(array)) => Some(&*array.items),
+            _ => None,
+        };
+        Json::Array(
             values
                 .iter()
-                .map(|value| value_to_json(value, human_readable))
+                .map(|value| self.convert(value, items, enclosing))
                 .collect(),
-        ),
-        Value::Map(entries) => Json::Object(
+        )
+    }
+
+    fn map(
+        &self,
+        entries: &HashMap<String, Value>,
+        schema: Option<&'s Schema>,
+        enclosing: Option<&str>,
+    ) -> Json {
+        let types = match schema {
+            Some(Schema::Map(map)) => Some(&*map.types),
+            _ => None,
+        };
+        Json::Object(
             entries
                 .iter()
-                .map(|(key, value)| (key.clone(), value_to_json(value, human_readable)))
+                .map(|(key, value)| (key.clone(), self.convert(value, types, enclosing)))
                 .collect::<Map<_, _>>(),
-        ),
-        Value::Record(fields) => Json::Object(
+        )
+    }
+
+    fn record(
+        &self,
+        fields: &[(String, Value)],
+        schema: Option<&'s Schema>,
+        enclosing: Option<&str>,
+    ) -> Json {
+        let record = match schema {
+            Some(Schema::Record(record)) => Some(record),
+            _ => None,
+        };
+        Json::Object(
             fields
                 .iter()
-                .map(|(name, value)| (name.clone(), value_to_json(value, human_readable)))
+                .map(|(name, value)| {
+                    let field_schema = record
+                        .and_then(|record| {
+                            record
+                                .fields
+                                .iter()
+                                .find(|field| field.name.as_str() == name)
+                        })
+                        .map(|field| &field.schema);
+                    (name.clone(), self.convert(value, field_schema, enclosing))
+                })
                 .collect::<Map<_, _>>(),
-        ),
-        Value::Date(days) => human_readable_json(human_readable, date(*days), Json::from(*days)),
-        Value::Decimal(decimal) => serde_json::to_value(decimal).unwrap_or(Json::Null),
-        Value::BigDecimal(decimal) => Json::String(decimal.to_string()),
-        Value::TimeMillis(millis) => {
-            human_readable_json(human_readable, time_millis(*millis), Json::from(*millis))
-        }
-        Value::TimeMicros(micros) => {
-            human_readable_json(human_readable, time_micros(*micros), Json::from(*micros))
-        }
-        Value::TimestampMillis(millis) => human_readable_json(
-            human_readable,
-            timestamp_millis(*millis),
-            Json::from(*millis),
-        ),
-        Value::TimestampMicros(micros) => human_readable_json(
-            human_readable,
-            timestamp_micros(*micros),
-            Json::from(*micros),
-        ),
-        Value::TimestampNanos(nanos) => human_readable_json(
-            human_readable,
-            Some(timestamp_nanos(*nanos)),
-            Json::from(*nanos),
-        ),
-        Value::LocalTimestampMillis(millis) => human_readable_json(
-            human_readable,
-            local_timestamp_millis(*millis),
-            Json::from(*millis),
-        ),
-        Value::LocalTimestampMicros(micros) => human_readable_json(
-            human_readable,
-            local_timestamp_micros(*micros),
-            Json::from(*micros),
-        ),
-        Value::LocalTimestampNanos(nanos) => human_readable_json(
-            human_readable,
-            Some(local_timestamp_nanos(*nanos)),
-            Json::from(*nanos),
-        ),
-        Value::Duration(duration) => {
-            if human_readable {
-                Json::String(format_duration(duration))
-            } else {
-                duration_to_json(duration)
-            }
-        }
-        Value::Uuid(uuid) => Json::String(uuid.to_string()),
+        )
     }
+}
+
+/// Resolves a schema reference against the names collected for the file.
+fn resolve_schema<'s>(
+    schema: &'s Schema,
+    names: &NamesRef<'s>,
+    enclosing: Option<&str>,
+) -> &'s Schema {
+    if let Schema::Ref { name } = schema {
+        let full = name.fully_qualified_name(enclosing);
+        if let Some(target) = names.get(full.as_ref()) {
+            return target;
+        }
+    }
+    schema
+}
+
+/// Renders a decimal value using the scale from its schema. Without a scale
+/// the value is printed as its unscaled integer, which still preserves all of
+/// its digits.
+fn decimal_to_string(decimal: &Decimal, schema: Option<&Schema>) -> String {
+    let scale = match schema {
+        Some(Schema::Decimal(decimal)) => decimal.scale,
+        _ => 0,
+    };
+    let scale = i64::try_from(scale).expect("decimal scales fit into `i64`");
+    BigDecimal::new(decimal.clone().into(), scale).to_plain_string()
 }
 
 /// Returns `readable` when human-readable rendering succeeded, and the
@@ -290,7 +398,21 @@ mod tests {
     use super::*;
 
     fn json_for(value: &Value, human_readable: bool) -> Json {
-        value_to_json(value, human_readable)
+        let names = NamesRef::new();
+        JsonConverter {
+            names: &names,
+            human_readable,
+        }
+        .convert(value, None, None)
+    }
+
+    fn json_for_schema(schema: &Schema, value: &Value, human_readable: bool) -> Json {
+        let resolved = ResolvedSchema::try_from(schema).expect("the schema resolves");
+        JsonConverter {
+            names: resolved.get_names(),
+            human_readable,
+        }
+        .convert(value, Some(schema), None)
     }
 
     #[test]
@@ -324,6 +446,69 @@ mod tests {
             json!("x")
         );
         assert_eq!(json_for(&Value::Enum(0, "RED".into()), false), json!("RED"));
+    }
+
+    #[test]
+    fn renders_decimals_as_strings() {
+        let schema = Schema::parse_str(
+            r#"{"type":"bytes","logicalType":"decimal","precision":4,"scale":2}"#,
+        )
+        .expect("the schema parses");
+
+        assert_eq!(
+            json_for_schema(
+                &schema,
+                &Value::Decimal(Decimal::from(vec![0x04, 0xD2])),
+                false
+            ),
+            json!("12.34")
+        );
+        assert_eq!(
+            json_for_schema(
+                &schema,
+                &Value::Decimal(Decimal::from(vec![0xFB, 0x2E])),
+                false
+            ),
+            json!("-12.34")
+        );
+        assert_eq!(
+            json_for_schema(&schema, &Value::Decimal(Decimal::from(vec![0])), false),
+            json!("0.00")
+        );
+
+        let coarse = Schema::parse_str(
+            r#"{"type":"bytes","logicalType":"decimal","precision":4,"scale":0}"#,
+        )
+        .expect("the schema parses");
+        assert_eq!(
+            json_for_schema(
+                &coarse,
+                &Value::Decimal(Decimal::from(vec![0x04, 0xD2])),
+                false
+            ),
+            json!("1234")
+        );
+    }
+
+    #[test]
+    fn renders_decimals_inside_composite_values() {
+        let schema = Schema::parse_str(
+            r#"{"type":"record","name":"Money","fields":[
+                {"name":"amount","type":{"type":"bytes","logicalType":"decimal","precision":4,"scale":2}},
+                {"name":"label","type":"string"}]}"#,
+        )
+        .expect("the schema parses");
+        let value = Value::Record(vec![
+            (
+                "amount".into(),
+                Value::Decimal(Decimal::from(vec![0x04, 0xD2])),
+            ),
+            ("label".into(), Value::String("price".into())),
+        ]);
+        assert_eq!(
+            json_for_schema(&schema, &value, false),
+            json!({"amount": "12.34", "label": "price"})
+        );
     }
 
     #[test]
