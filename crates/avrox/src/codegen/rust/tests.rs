@@ -368,22 +368,21 @@ fn primitives_mode_keeps_time_integers() {
 }
 
 #[test]
-fn std_time_mode_wraps_times_in_std_types() {
+fn std_time_mode_uses_bare_std_types() {
     let contents = contents_of_time(TIME_SCHEMA, RustTime::StdTime);
     assert!(contents.contains("pub date: i32,"));
-    assert!(contents.contains("pub time_millis: TimeMillis,"));
-    assert!(contents.contains("pub struct TimeMillis(pub std::time::Duration);"));
-    assert!(contents.contains("pub timestamp: TimestampMillis,"));
-    assert!(
-        contents.contains("pub struct TimestampMillis(pub std::time::SystemTime);"),
-        "missing wrapper:\n{contents}"
-    );
-    assert!(contents.contains("pub local_nanos: TimestampNanos,"));
-    assert!(contents.contains("pub struct TimestampNanos(pub std::time::SystemTime);"));
-    assert!(contents.contains("pub optional: Option<TimestampMicros>,"));
-    assert!(contents.contains("pub enum TimestampNanosOrString {"));
-    assert!(contents.contains("TimestampNanos(TimestampNanos),"));
-    assert!(contents.contains("impl From<std::time::SystemTime> for TimestampMillis"));
+    assert!(contents.contains("pub time_millis: std::time::Duration,"));
+    assert!(contents.contains("pub timestamp: std::time::SystemTime,"));
+    assert!(contents.contains("pub local_nanos: std::time::SystemTime,"));
+    assert!(contents.contains("pub optional: Option<std::time::SystemTime>,"));
+    assert!(contents.contains("pub enum SystemTimeOrString {"));
+    assert!(contents.contains("SystemTime(std::time::SystemTime)"));
+    assert!(contents.contains(r#"#[serde(with = "__avrox_time::time_millis")]"#));
+    assert!(contents.contains(r#"#[serde(with = "__avrox_time::timestamp_millis")]"#));
+    assert!(contents.contains(r#"#[serde(with = "__avrox_time::timestamp_micros_option")]"#));
+    assert!(contents.contains("mod __avrox_time {"));
+    assert!(contents.contains("pub(crate) mod timestamp_nanos {"));
+    assert!(!contents.contains("pub struct TimestampMillis"));
     assert!(!contents.contains("chrono"));
 }
 
@@ -413,11 +412,8 @@ fn time_modes_reject_colliding_type_names() {
     let timestamp = r#"{"type": "record", "name": "TimestampMillis", "fields": [
         {"name": "ts", "type": {"type": "long", "logicalType": "timestamp-millis"}}
     ]}"#;
-    assert_eq!(
-        generate_err_time(timestamp, RustTime::StdTime),
-        "unsupported schema: type name `TimestampMillis` (from type \
-         `TimestampMillis`) collides with a name used by the generated code"
-    );
+    let files = generate_with_time(timestamp, RustTime::StdTime);
+    assert_eq!(files.len(), 1);
     let files = generate_with_time(timestamp, RustTime::Chrono);
     assert_eq!(files.len(), 1);
 
@@ -426,6 +422,7 @@ fn time_modes_reject_colliding_type_names() {
             "type": "long", "logicalType": "timestamp-millis"
         }}}
     ]}"#;
+    assert!(generate_err_time(nested, RustTime::StdTime).contains("type name `TimestampMillis`"));
     assert!(generate_err_time(nested, RustTime::Chrono).contains("type name `TimestampMillis`"));
 
     assert!(
@@ -447,6 +444,8 @@ fn time_modes_reject_colliding_type_names() {
         }}}
     ]}"#;
     assert!(generate_err_time(nested_date, RustTime::Chrono).contains("type name `Date`"));
+    let files = generate_with_time(nested_date, RustTime::StdTime);
+    assert_eq!(files.len(), 1);
 }
 
 #[test]
@@ -467,6 +466,25 @@ fn chrono_nested_logical_types_use_wrappers() {
     assert!(contents.contains("pub struct TimestampMicros(pub chrono::DateTime<chrono::Utc>);"));
     assert!(contents.contains("pub times: HashMap<String, TimestampMicros>,"));
     assert!(!contents.contains(r#"#[serde(with = "__avrox_time::date")]"#));
+}
+
+#[test]
+fn std_time_nested_logical_types_use_wrappers() {
+    let contents = contents_of_time(
+        r#"{"type": "record", "name": "N", "fields": [
+            {"name": "dates", "type": {"type": "array", "items": {
+                "type": "int", "logicalType": "date"
+            }}},
+            {"name": "times", "type": {"type": "map", "values": {
+                "type": "long", "logicalType": "timestamp-micros"
+            }}}
+        ]}"#,
+        RustTime::StdTime,
+    );
+    assert!(contents.contains("pub dates: Vec<i32>,"));
+    assert!(contents.contains("pub struct TimestampMicros(pub std::time::SystemTime);"));
+    assert!(contents.contains("pub times: HashMap<String, TimestampMicros>,"));
+    assert!(!contents.contains(r#"#[serde(with = "__avrox_time::timestamp_micros")]"#));
 }
 
 #[test]

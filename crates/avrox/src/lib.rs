@@ -332,10 +332,13 @@ pub enum RustTime {
     /// Their underlying integer types (`i32`/`i64`), documented on the fields
     /// carrying them. This is the default and needs no extra dependencies.
     Primitives,
-    /// [`std::time`]: timestamps become newtypes wrapping
-    /// [`std::time::SystemTime`] and times-of-day newtypes wrapping
-    /// [`std::time::Duration`]. `date` has no standard library
-    /// representation and stays an `i32`. Needs no extra dependencies.
+    /// [`std::time`]: timestamps keep their natural [`std::time::SystemTime`]
+    /// type and times-of-day use [`std::time::Duration`], with field-level
+    /// `serde` adapters that encode them as the Avro integers of their logical
+    /// types. `date` has no standard library representation and stays an
+    /// `i32`. Logical types nested inside arrays or maps use generated
+    /// newtypes because `serde` cannot attach field attributes to collection
+    /// elements. Needs no extra dependencies.
     StdTime,
     /// [`chrono`]: time-related logical types keep their natural domain types
     /// ([`chrono::NaiveDate`], [`chrono::NaiveTime`], [`chrono::DateTime`] and

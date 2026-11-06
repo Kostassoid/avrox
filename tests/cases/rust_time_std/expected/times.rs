@@ -9,268 +9,249 @@
 //! - rust time: std-time
 //! - rust derives: none
 use serde::{Deserialize, Serialize};
-/// Logical type `time-millis`: milliseconds after midnight.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TimeMillis(pub std::time::Duration);
-impl serde::Serialize for TimeMillis {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer
-            .serialize_i32(
-                (i32::try_from(self.0.as_millis()).ok())
-                    .ok_or_else(|| serde::ser::Error::custom("value out of range"))?,
-            )
-    }
-}
-impl<'de> serde::Deserialize<'de> for TimeMillis {
-    fn deserialize<D: serde::Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<Self, D::Error> {
-        struct Visitor;
-        impl<'de> serde::de::Visitor<'de> for Visitor {
-            type Value = TimeMillis;
-            fn expecting(
-                &self,
-                formatter: &mut std::fmt::Formatter,
-            ) -> std::fmt::Result {
-                formatter.write_str("an Avro `time-millis` value")
-            }
-            fn visit_i32<E: serde::de::Error>(self, v: i32) -> Result<Self::Value, E> {
-                (u64::try_from(v).ok().map(std::time::Duration::from_millis))
-                    .map(TimeMillis)
-                    .ok_or_else(|| E::custom("value out of range"))
+#[allow(dead_code)]
+mod __avrox_time {
+    pub(crate) mod timestamp_millis {
+        pub(super) fn millis(value: &std::time::SystemTime) -> i64 {
+            let millis = match value.duration_since(std::time::UNIX_EPOCH) {
+                Ok(elapsed) => elapsed.as_millis() as i128,
+                Err(before) => -(before.duration().as_millis() as i128),
+            };
+            millis.clamp(i64::MIN as i128, i64::MAX as i128) as i64
+        }
+        fn from_millis(value: i64) -> Option<std::time::SystemTime> {
+            let duration = std::time::Duration::from_millis(value.unsigned_abs());
+            if value < 0 {
+                std::time::UNIX_EPOCH.checked_sub(duration)
+            } else {
+                std::time::UNIX_EPOCH.checked_add(duration)
             }
         }
-        deserializer.deserialize_i32(Visitor)
-    }
-}
-impl From<std::time::Duration> for TimeMillis {
-    fn from(value: std::time::Duration) -> Self {
-        Self(value)
-    }
-}
-impl std::ops::Deref for TimeMillis {
-    type Target = std::time::Duration;
-    fn deref(&self) -> &std::time::Duration {
-        &self.0
-    }
-}
-/// Logical type `time-micros`: microseconds after midnight.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TimeMicros(pub std::time::Duration);
-impl serde::Serialize for TimeMicros {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer
-            .serialize_i64(
-                (i64::try_from(self.0.as_micros()).ok())
-                    .ok_or_else(|| serde::ser::Error::custom("value out of range"))?,
-            )
-    }
-}
-impl<'de> serde::Deserialize<'de> for TimeMicros {
-    fn deserialize<D: serde::Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<Self, D::Error> {
-        struct Visitor;
-        impl<'de> serde::de::Visitor<'de> for Visitor {
-            type Value = TimeMicros;
-            fn expecting(
-                &self,
-                formatter: &mut std::fmt::Formatter,
-            ) -> std::fmt::Result {
-                formatter.write_str("an Avro `time-micros` value")
+        pub(crate) fn serialize<S: serde::Serializer>(
+            value: &std::time::SystemTime,
+            serializer: S,
+        ) -> Result<S::Ok, S::Error> {
+            serializer.serialize_i64(millis(value))
+        }
+        pub(crate) fn deserialize<'de, D: serde::Deserializer<'de>>(
+            deserializer: D,
+        ) -> Result<std::time::SystemTime, D::Error> {
+            struct Visitor;
+            impl<'de> serde::de::Visitor<'de> for Visitor {
+                type Value = std::time::SystemTime;
+                fn expecting(
+                    &self,
+                    formatter: &mut std::fmt::Formatter,
+                ) -> std::fmt::Result {
+                    formatter.write_str("an Avro `timestamp-millis` value")
+                }
+                fn visit_i64<E: serde::de::Error>(
+                    self,
+                    value: i64,
+                ) -> Result<Self::Value, E> {
+                    from_millis(value).ok_or_else(|| E::custom("value out of range"))
+                }
             }
-            fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<Self::Value, E> {
-                (u64::try_from(v).ok().map(std::time::Duration::from_micros))
-                    .map(TimeMicros)
-                    .ok_or_else(|| E::custom("value out of range"))
+            deserializer.deserialize_i64(Visitor)
+        }
+    }
+    pub(crate) mod timestamp_micros {
+        pub(super) fn micros(value: &std::time::SystemTime) -> i64 {
+            let micros = match value.duration_since(std::time::UNIX_EPOCH) {
+                Ok(elapsed) => elapsed.as_micros() as i128,
+                Err(before) => -(before.duration().as_micros() as i128),
+            };
+            micros.clamp(i64::MIN as i128, i64::MAX as i128) as i64
+        }
+        fn from_micros(value: i64) -> Option<std::time::SystemTime> {
+            let duration = std::time::Duration::from_micros(value.unsigned_abs());
+            if value < 0 {
+                std::time::UNIX_EPOCH.checked_sub(duration)
+            } else {
+                std::time::UNIX_EPOCH.checked_add(duration)
             }
         }
-        deserializer.deserialize_i64(Visitor)
-    }
-}
-impl From<std::time::Duration> for TimeMicros {
-    fn from(value: std::time::Duration) -> Self {
-        Self(value)
-    }
-}
-impl std::ops::Deref for TimeMicros {
-    type Target = std::time::Duration;
-    fn deref(&self) -> &std::time::Duration {
-        &self.0
-    }
-}
-/// Logical type `timestamp-millis`: milliseconds from the unix epoch.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TimestampMillis(pub std::time::SystemTime);
-impl serde::Serialize for TimestampMillis {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer
-            .serialize_i64(
-                ({
-                    let millis = match self.0.duration_since(std::time::UNIX_EPOCH) {
-                        Ok(elapsed) => elapsed.as_millis() as i128,
-                        Err(before) => -(before.duration().as_millis() as i128),
-                    };
-                    Some(millis.clamp(i64::MIN as i128, i64::MAX as i128) as i64)
-                })
-                    .ok_or_else(|| serde::ser::Error::custom("value out of range"))?,
-            )
-    }
-}
-impl<'de> serde::Deserialize<'de> for TimestampMillis {
-    fn deserialize<D: serde::Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<Self, D::Error> {
-        struct Visitor;
-        impl<'de> serde::de::Visitor<'de> for Visitor {
-            type Value = TimestampMillis;
-            fn expecting(
-                &self,
-                formatter: &mut std::fmt::Formatter,
-            ) -> std::fmt::Result {
-                formatter.write_str("an Avro `timestamp-millis` value")
+        pub(crate) fn serialize<S: serde::Serializer>(
+            value: &std::time::SystemTime,
+            serializer: S,
+        ) -> Result<S::Ok, S::Error> {
+            serializer.serialize_i64(micros(value))
+        }
+        pub(crate) fn deserialize<'de, D: serde::Deserializer<'de>>(
+            deserializer: D,
+        ) -> Result<std::time::SystemTime, D::Error> {
+            struct Visitor;
+            impl<'de> serde::de::Visitor<'de> for Visitor {
+                type Value = std::time::SystemTime;
+                fn expecting(
+                    &self,
+                    formatter: &mut std::fmt::Formatter,
+                ) -> std::fmt::Result {
+                    formatter.write_str("an Avro `timestamp-micros` value")
+                }
+                fn visit_i64<E: serde::de::Error>(
+                    self,
+                    value: i64,
+                ) -> Result<Self::Value, E> {
+                    from_micros(value).ok_or_else(|| E::custom("value out of range"))
+                }
             }
-            fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<Self::Value, E> {
-                ({
-                    let duration = std::time::Duration::from_millis(v.unsigned_abs());
-                    if v < 0 {
-                        std::time::UNIX_EPOCH.checked_sub(duration)
-                    } else {
-                        std::time::UNIX_EPOCH.checked_add(duration)
-                    }
-                })
-                    .map(TimestampMillis)
-                    .ok_or_else(|| E::custom("value out of range"))
+            deserializer.deserialize_i64(Visitor)
+        }
+    }
+    pub(crate) mod timestamp_micros_option {
+        pub(crate) fn serialize<S: serde::Serializer>(
+            value: &Option<std::time::SystemTime>,
+            serializer: S,
+        ) -> Result<S::Ok, S::Error> {
+            match value {
+                Some(value) => {
+                    serializer.serialize_some(&super::timestamp_micros::micros(value))
+                }
+                None => serializer.serialize_none(),
             }
         }
-        deserializer.deserialize_i64(Visitor)
-    }
-}
-impl From<std::time::SystemTime> for TimestampMillis {
-    fn from(value: std::time::SystemTime) -> Self {
-        Self(value)
-    }
-}
-impl std::ops::Deref for TimestampMillis {
-    type Target = std::time::SystemTime;
-    fn deref(&self) -> &std::time::SystemTime {
-        &self.0
-    }
-}
-/// Logical type `timestamp-micros`: microseconds from the unix epoch.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TimestampMicros(pub std::time::SystemTime);
-impl serde::Serialize for TimestampMicros {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer
-            .serialize_i64(
-                ({
-                    let micros = match self.0.duration_since(std::time::UNIX_EPOCH) {
-                        Ok(elapsed) => elapsed.as_micros() as i128,
-                        Err(before) => -(before.duration().as_micros() as i128),
-                    };
-                    Some(micros.clamp(i64::MIN as i128, i64::MAX as i128) as i64)
-                })
-                    .ok_or_else(|| serde::ser::Error::custom("value out of range"))?,
-            )
-    }
-}
-impl<'de> serde::Deserialize<'de> for TimestampMicros {
-    fn deserialize<D: serde::Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<Self, D::Error> {
-        struct Visitor;
-        impl<'de> serde::de::Visitor<'de> for Visitor {
-            type Value = TimestampMicros;
-            fn expecting(
-                &self,
-                formatter: &mut std::fmt::Formatter,
-            ) -> std::fmt::Result {
-                formatter.write_str("an Avro `timestamp-micros` value")
+        pub(crate) fn deserialize<'de, D: serde::Deserializer<'de>>(
+            deserializer: D,
+        ) -> Result<Option<std::time::SystemTime>, D::Error> {
+            struct Visitor;
+            impl<'de> serde::de::Visitor<'de> for Visitor {
+                type Value = Option<std::time::SystemTime>;
+                fn expecting(
+                    &self,
+                    formatter: &mut std::fmt::Formatter,
+                ) -> std::fmt::Result {
+                    formatter.write_str("an Avro `timestamp-micros` value or null")
+                }
+                fn visit_some<D: serde::Deserializer<'de>>(
+                    self,
+                    deserializer: D,
+                ) -> Result<Self::Value, D::Error> {
+                    super::timestamp_micros::deserialize(deserializer).map(Some)
+                }
+                fn visit_none<E: serde::de::Error>(self) -> Result<Self::Value, E> {
+                    Ok(None)
+                }
+                fn visit_unit<E: serde::de::Error>(self) -> Result<Self::Value, E> {
+                    Ok(None)
+                }
             }
-            fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<Self::Value, E> {
-                ({
-                    let duration = std::time::Duration::from_micros(v.unsigned_abs());
-                    if v < 0 {
-                        std::time::UNIX_EPOCH.checked_sub(duration)
-                    } else {
-                        std::time::UNIX_EPOCH.checked_add(duration)
-                    }
-                })
-                    .map(TimestampMicros)
-                    .ok_or_else(|| E::custom("value out of range"))
+            deserializer.deserialize_option(Visitor)
+        }
+    }
+    pub(crate) mod timestamp_nanos {
+        pub(super) fn nanos(value: &std::time::SystemTime) -> i64 {
+            let nanos = match value.duration_since(std::time::UNIX_EPOCH) {
+                Ok(elapsed) => elapsed.as_nanos() as i128,
+                Err(before) => -(before.duration().as_nanos() as i128),
+            };
+            nanos.clamp(i64::MIN as i128, i64::MAX as i128) as i64
+        }
+        fn from_nanos(value: i64) -> Option<std::time::SystemTime> {
+            let duration = std::time::Duration::from_nanos(value.unsigned_abs());
+            if value < 0 {
+                std::time::UNIX_EPOCH.checked_sub(duration)
+            } else {
+                std::time::UNIX_EPOCH.checked_add(duration)
             }
         }
-        deserializer.deserialize_i64(Visitor)
-    }
-}
-impl From<std::time::SystemTime> for TimestampMicros {
-    fn from(value: std::time::SystemTime) -> Self {
-        Self(value)
-    }
-}
-impl std::ops::Deref for TimestampMicros {
-    type Target = std::time::SystemTime;
-    fn deref(&self) -> &std::time::SystemTime {
-        &self.0
-    }
-}
-/// Logical type `timestamp-nanos`: nanoseconds from the unix epoch.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TimestampNanos(pub std::time::SystemTime);
-impl serde::Serialize for TimestampNanos {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer
-            .serialize_i64(
-                ({
-                    let nanos = match self.0.duration_since(std::time::UNIX_EPOCH) {
-                        Ok(elapsed) => elapsed.as_nanos() as i128,
-                        Err(before) => -(before.duration().as_nanos() as i128),
-                    };
-                    Some(nanos.clamp(i64::MIN as i128, i64::MAX as i128) as i64)
-                })
-                    .ok_or_else(|| serde::ser::Error::custom("value out of range"))?,
-            )
-    }
-}
-impl<'de> serde::Deserialize<'de> for TimestampNanos {
-    fn deserialize<D: serde::Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<Self, D::Error> {
-        struct Visitor;
-        impl<'de> serde::de::Visitor<'de> for Visitor {
-            type Value = TimestampNanos;
-            fn expecting(
-                &self,
-                formatter: &mut std::fmt::Formatter,
-            ) -> std::fmt::Result {
-                formatter.write_str("an Avro `timestamp-nanos` value")
-            }
-            fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<Self::Value, E> {
-                ({
-                    let duration = std::time::Duration::from_nanos(v.unsigned_abs());
-                    if v < 0 {
-                        std::time::UNIX_EPOCH.checked_sub(duration)
-                    } else {
-                        std::time::UNIX_EPOCH.checked_add(duration)
-                    }
-                })
-                    .map(TimestampNanos)
-                    .ok_or_else(|| E::custom("value out of range"))
-            }
+        pub(crate) fn serialize<S: serde::Serializer>(
+            value: &std::time::SystemTime,
+            serializer: S,
+        ) -> Result<S::Ok, S::Error> {
+            serializer.serialize_i64(nanos(value))
         }
-        deserializer.deserialize_i64(Visitor)
+        pub(crate) fn deserialize<'de, D: serde::Deserializer<'de>>(
+            deserializer: D,
+        ) -> Result<std::time::SystemTime, D::Error> {
+            struct Visitor;
+            impl<'de> serde::de::Visitor<'de> for Visitor {
+                type Value = std::time::SystemTime;
+                fn expecting(
+                    &self,
+                    formatter: &mut std::fmt::Formatter,
+                ) -> std::fmt::Result {
+                    formatter.write_str("an Avro `timestamp-nanos` value")
+                }
+                fn visit_i64<E: serde::de::Error>(
+                    self,
+                    value: i64,
+                ) -> Result<Self::Value, E> {
+                    from_nanos(value).ok_or_else(|| E::custom("value out of range"))
+                }
+            }
+            deserializer.deserialize_i64(Visitor)
+        }
     }
-}
-impl From<std::time::SystemTime> for TimestampNanos {
-    fn from(value: std::time::SystemTime) -> Self {
-        Self(value)
+    pub(crate) mod time_millis {
+        pub(crate) fn serialize<S: serde::Serializer>(
+            value: &std::time::Duration,
+            serializer: S,
+        ) -> Result<S::Ok, S::Error> {
+            serializer
+                .serialize_i32(
+                    i32::try_from(value.as_millis())
+                        .map_err(|_| serde::ser::Error::custom("value out of range"))?,
+                )
+        }
+        pub(crate) fn deserialize<'de, D: serde::Deserializer<'de>>(
+            deserializer: D,
+        ) -> Result<std::time::Duration, D::Error> {
+            struct Visitor;
+            impl<'de> serde::de::Visitor<'de> for Visitor {
+                type Value = std::time::Duration;
+                fn expecting(
+                    &self,
+                    formatter: &mut std::fmt::Formatter,
+                ) -> std::fmt::Result {
+                    formatter.write_str("an Avro `time-millis` value")
+                }
+                fn visit_i32<E: serde::de::Error>(
+                    self,
+                    value: i32,
+                ) -> Result<Self::Value, E> {
+                    u64::try_from(value)
+                        .map(std::time::Duration::from_millis)
+                        .map_err(|_| E::custom("value out of range"))
+                }
+            }
+            deserializer.deserialize_i32(Visitor)
+        }
     }
-}
-impl std::ops::Deref for TimestampNanos {
-    type Target = std::time::SystemTime;
-    fn deref(&self) -> &std::time::SystemTime {
-        &self.0
+    pub(crate) mod time_micros {
+        pub(crate) fn serialize<S: serde::Serializer>(
+            value: &std::time::Duration,
+            serializer: S,
+        ) -> Result<S::Ok, S::Error> {
+            serializer
+                .serialize_i64(
+                    i64::try_from(value.as_micros())
+                        .map_err(|_| serde::ser::Error::custom("value out of range"))?,
+                )
+        }
+        pub(crate) fn deserialize<'de, D: serde::Deserializer<'de>>(
+            deserializer: D,
+        ) -> Result<std::time::Duration, D::Error> {
+            struct Visitor;
+            impl<'de> serde::de::Visitor<'de> for Visitor {
+                type Value = std::time::Duration;
+                fn expecting(
+                    &self,
+                    formatter: &mut std::fmt::Formatter,
+                ) -> std::fmt::Result {
+                    formatter.write_str("an Avro `time-micros` value")
+                }
+                fn visit_i64<E: serde::de::Error>(
+                    self,
+                    value: i64,
+                ) -> Result<Self::Value, E> {
+                    u64::try_from(value)
+                        .map(std::time::Duration::from_micros)
+                        .map_err(|_| E::custom("value out of range"))
+                }
+            }
+            deserializer.deserialize_i64(Visitor)
+        }
     }
 }
 /// Time-related logical types.
@@ -280,29 +261,37 @@ pub struct Times {
     pub date: i32,
     /// Logical type `time-millis`: milliseconds after midnight.
     #[serde(rename = "timeMillis")]
-    pub time_millis: TimeMillis,
+    #[serde(with = "__avrox_time::time_millis")]
+    pub time_millis: std::time::Duration,
     /// Logical type `time-micros`: microseconds after midnight.
     #[serde(rename = "timeMicros")]
-    pub time_micros: TimeMicros,
+    #[serde(with = "__avrox_time::time_micros")]
+    pub time_micros: std::time::Duration,
     /// Logical type `timestamp-millis`: milliseconds from the unix epoch.
     #[serde(rename = "timestampMillis")]
-    pub timestamp_millis: TimestampMillis,
+    #[serde(with = "__avrox_time::timestamp_millis")]
+    pub timestamp_millis: std::time::SystemTime,
     /// Logical type `timestamp-nanos`: nanoseconds from the unix epoch.
     #[serde(rename = "timestampNanos")]
-    pub timestamp_nanos: TimestampNanos,
+    #[serde(with = "__avrox_time::timestamp_nanos")]
+    pub timestamp_nanos: std::time::SystemTime,
     /// Logical type `local-timestamp-millis`: milliseconds from the unix epoch, local time.
     #[serde(rename = "localMillis")]
-    pub local_millis: TimestampMillis,
+    #[serde(with = "__avrox_time::timestamp_millis")]
+    pub local_millis: std::time::SystemTime,
     /// Logical type `local-timestamp-nanos`: nanoseconds from the unix epoch, local time.
     #[serde(rename = "localNanos")]
-    pub local_nanos: TimestampNanos,
-    pub optional: Option<TimestampMicros>,
-    pub either: TimestampNanosOrString,
+    #[serde(with = "__avrox_time::timestamp_nanos")]
+    pub local_nanos: std::time::SystemTime,
+    #[serde(with = "__avrox_time::timestamp_micros_option")]
+    pub optional: Option<std::time::SystemTime>,
+    pub either: SystemTimeOrString,
     pub plain: i64,
 }
-/// Avro union of `TimestampNanos`, `String`.
+/// Avro union of `SystemTime`, `String`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum TimestampNanosOrString {
-    TimestampNanos(TimestampNanos),
+pub enum SystemTimeOrString {
+    #[serde(with = "__avrox_time::timestamp_nanos")]
+    SystemTime(std::time::SystemTime),
     String(String),
 }

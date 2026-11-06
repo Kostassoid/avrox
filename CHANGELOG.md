@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the generated domain types clean. Logical types nested inside arrays or
   maps still use generated newtypes because `serde` cannot attach field
   attributes to collection elements.
+- `--rust-time std-time` now maps timestamps to bare
+  `std::time::SystemTime` values and times-of-day to `std::time::Duration`,
+  with field-level `serde` adapters. Logical types nested inside arrays or
+  maps still use generated newtypes, as in `chrono` mode.
 
 ## [1.4.1] - 2026-11-06
 

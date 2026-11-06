@@ -9,6 +9,7 @@
 //! - rust time: chrono
 //! - rust derives: none
 use serde::{Deserialize, Serialize};
+#[allow(dead_code)]
 mod __avrox_time {
     pub(crate) mod date {
         pub(crate) fn serialize<S: serde::Serializer>(

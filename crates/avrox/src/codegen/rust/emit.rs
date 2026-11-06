@@ -191,7 +191,7 @@ fn render_single_file(
             items.push(renderer.render_union_enum(id, &mut context)?);
         }
     }
-    if let Some(module) = time::helper_module(&context.time_helpers) {
+    if let Some(module) = model.time.helper_module(&context.time_helpers) {
         items.insert(0, module);
     }
     let imports = imports(&context);
@@ -242,7 +242,7 @@ fn render_module(
         let item = renderer.render_named(named, &mut context)?;
         let imports = imports(&context);
         let mut items = Vec::new();
-        if let Some(module) = time::helper_module(&context.time_helpers) {
+        if let Some(module) = model.time.helper_module(&context.time_helpers) {
             items.push(module);
         }
         items.push(item);
@@ -258,7 +258,7 @@ fn render_module(
         }
     }
     let imports = imports(&context);
-    let helper = time::helper_module(&context.time_helpers);
+    let helper = model.time.helper_module(&context.time_helpers);
     let docs = header_docs(header);
     let tokens = quote! {
         #(#docs)*

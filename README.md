@@ -103,10 +103,13 @@ the two output options must be given:
 - `--rust-time primitives` (default): time-related logical types (`date`,
   `time-*`, `timestamp-*`, `local-timestamp-*`) keep their underlying
   integers (`i32`/`i64`), documented on the fields carrying them;
-- `--rust-time std-time`: timestamps become newtypes wrapping
-  `std::time::SystemTime` and times-of-day newtypes wrapping
-  `std::time::Duration`; `date` has no standard library representation and
-  stays an `i32`. Needs no extra dependencies;
+- `--rust-time std-time`: timestamps become bare `std::time::SystemTime`
+  values and times-of-day become `std::time::Duration` values, with field-level
+  `serde` adapters that encode them as the Avro integers of their logical
+  types; `date` has no standard library representation and stays an `i32`.
+  Needs no extra dependencies. Logical types nested inside arrays or maps
+  still use generated newtypes, because `serde` cannot attach field attributes
+  to collection elements;
 - `--rust-time chrono`: time-related logical types become bare
   `chrono::NaiveDate`, `chrono::NaiveTime`, `chrono::DateTime<Utc>` and
   `chrono::NaiveDateTime`, with field-level `serde` adapters that encode them

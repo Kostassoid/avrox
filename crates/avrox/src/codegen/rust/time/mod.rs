@@ -4,7 +4,7 @@
 //! representation-specific rules live in the [`chrono`] and [`std_time`]
 //! submodules.
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -14,11 +14,9 @@ use crate::schema::{Document, LogicalType, NamedType, Schema};
 
 mod chrono;
 mod render;
-mod serde;
 mod std_time;
 
 pub(super) use render::render;
-pub(super) use serde::helper_module;
 
 /// The configured representation of time-related logical types.
 ///
@@ -38,7 +36,8 @@ impl Time {
     /// `serde` attribute, if the representation has one.
     pub(super) fn direct_type(self, kind: LogicalType) -> Option<TokenStream> {
         match self.setting {
-            RustTime::Primitives | RustTime::StdTime => None,
+            RustTime::Primitives => None,
+            RustTime::StdTime => std_time::direct_type(kind),
             RustTime::Chrono => chrono::direct_type(kind),
         }
     }
@@ -52,7 +51,13 @@ impl Time {
     ) -> Option<TimeWrapper> {
         match self.setting {
             RustTime::Primitives => None,
-            RustTime::StdTime => std_time::wrapper(kind),
+            RustTime::StdTime => {
+                if direct {
+                    None
+                } else {
+                    std_time::wrapper(kind)
+                }
+            }
             RustTime::Chrono => {
                 if direct {
                     None
@@ -67,7 +72,8 @@ impl Time {
     /// representation uses bare domain types.
     pub(super) fn serde_with(self, schema: &Schema) -> Option<SerdeWith> {
         match self.setting {
-            RustTime::Primitives | RustTime::StdTime => None,
+            RustTime::Primitives => None,
+            RustTime::StdTime => std_time::serde_with(schema),
             RustTime::Chrono => chrono::serde_with(schema),
         }
     }
@@ -76,10 +82,17 @@ impl Time {
     pub(super) fn display_name(self, kind: LogicalType) -> Option<&'static str> {
         match self.setting {
             RustTime::Primitives => None,
-            RustTime::StdTime => self
-                .wrapper_for_position(kind, true)
-                .map(|wrapper| wrapper.name),
+            RustTime::StdTime => std_time::type_name(kind),
             RustTime::Chrono => chrono::type_name(kind),
+        }
+    }
+
+    /// The serde helper module a generated file needs, if any.
+    pub(super) fn helper_module(self, helpers: &BTreeSet<Helper>) -> Option<TokenStream> {
+        match self.setting {
+            RustTime::Primitives => None,
+            RustTime::StdTime => std_time::helper_module(helpers),
+            RustTime::Chrono => chrono::helper_module(helpers),
         }
     }
 
@@ -183,8 +196,8 @@ pub(super) struct TimeWrapper {
     deserialize: TokenStream,
 }
 
-/// A serde adapter module a generated file may need for a logical type that
-/// `chrono` does not provide a built-in module for.
+/// A serde adapter module a generated file may need when the selected
+/// representation has no built-in adapter for a logical type.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Helper {
     Date,
@@ -193,6 +206,12 @@ pub(super) enum Helper {
     TimeMillisOption,
     TimeMicros,
     TimeMicrosOption,
+    TimestampMillis,
+    TimestampMillisOption,
+    TimestampMicros,
+    TimestampMicrosOption,
+    TimestampNanos,
+    TimestampNanosOption,
 }
 
 /// A field-level `serde(with = "...")` adapter for a time logical type.
@@ -201,6 +220,34 @@ pub(super) struct SerdeWith {
     pub(super) path: &'static str,
     /// Generated helper module needed by the path, if any.
     pub(super) helper: Option<Helper>,
+}
+
+/// The logical type a schema carries at a field-like position, and whether it
+/// is wrapped in a nullable union.
+pub(super) fn direct_logical(schema: &Schema) -> Option<(LogicalType, bool)> {
+    match schema {
+        Schema::Logical { kind, .. } => Some((*kind, false)),
+        Schema::Union(branches) => match branches.as_slice() {
+            [branch] => direct_logical(branch),
+            [first, second] => match (
+                matches!(first, Schema::Null),
+                matches!(second, Schema::Null),
+            ) {
+                (true, false) => nullable_logical(second),
+                (false, true) => nullable_logical(first),
+                _ => None,
+            },
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn nullable_logical(schema: &Schema) -> Option<(LogicalType, bool)> {
+    let Schema::Logical { kind, .. } = schema else {
+        return None;
+    };
+    Some((*kind, true))
 }
 
 /// Time-related logical types, in the order their wrappers are emitted.
