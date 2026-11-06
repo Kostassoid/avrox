@@ -23,8 +23,9 @@ cargo run -p avrox-cli -- generate path/to/schema.avsc --output-dir src/gen
 cargo run -p avrox-cli -- --help
 ```
 
-The CLI is organized as subcommands; `generate` is currently the only one.
-Its options include `--language` (currently `rust`), `--avro-version`
+The CLI is organized as subcommands: `generate` (code generation, see below)
+and `extract-schema` (schema extraction from data files).
+`generate`'s options include `--language` (currently `rust`), `--avro-version`
 (`1.10`, `1.11` or `1.12`, the default), `--rust-types` and `--rust-time`.
 Exactly one of the two output options must be given:
 
@@ -56,6 +57,18 @@ Exactly one of the two output options must be given:
   `chrono::NaiveTime`, `chrono::DateTime<Utc>` and `chrono::NaiveDateTime`,
   with `serde` implementations that encode them as the Avro integers of their
   logical types. The consuming crate needs `chrono` 0.4.40 or later.
+
+`extract-schema` prints the schema stored in the header of an Avro data file
+(`.avro`) to standard output and nothing else, so it can be redirected or
+piped:
+
+```sh
+cargo run -p avrox-cli -- extract-schema path/to/data.avro > schema.avsc
+```
+
+It stops reading as soon as it has reached the schema, so data files of any
+size work. The output is byte-identical to the schema as stored in the file.
+Non-container files are rejected.
 
 From Rust:
 

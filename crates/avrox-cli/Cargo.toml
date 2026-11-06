@@ -14,6 +14,9 @@ avrox.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 
+[dev-dependencies]
+apache-avro.workspace = true
+
 [lints]
 workspace = true
 

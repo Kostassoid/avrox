@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `avrox-cli extract-schema` subcommand: prints the schema stored in an Avro
+  data file (`.avro`) to stdout and nothing else, reading only the file
+  header so files of any size can be processed.
+
 ### Changed
 
 - `avrox-cli` is now organized as subcommands: code generation moved under

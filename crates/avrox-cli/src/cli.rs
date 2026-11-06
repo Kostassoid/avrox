@@ -2,7 +2,7 @@
 
 use clap::Parser;
 
-use crate::commands::generate::Generate;
+use crate::commands::{extract_schema::ExtractSchema, generate::Generate};
 
 /// Command line frontend for the `avrox` code generator.
 #[derive(Debug, Parser)]
@@ -17,4 +17,6 @@ pub(crate) struct Cli {
 pub(crate) enum Commands {
     /// Generate code from an Avro schema.
     Generate(Generate),
+    /// Extract the schema from an Avro data file and print it to stdout.
+    ExtractSchema(ExtractSchema),
 }

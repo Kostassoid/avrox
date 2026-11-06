@@ -1,5 +1,6 @@
 //! Subcommand implementations.
 
+pub(crate) mod extract_schema;
 pub(crate) mod generate;
 
 use anyhow::Result;
@@ -10,5 +11,6 @@ use crate::cli::{Cli, Commands};
 pub(crate) fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Commands::Generate(args) => generate::run(&args),
+        Commands::ExtractSchema(args) => extract_schema::run(&args),
     }
 }
