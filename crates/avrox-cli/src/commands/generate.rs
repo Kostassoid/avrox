@@ -133,16 +133,16 @@ pub(crate) fn run(args: &Generate) -> Result<()> {
         // clap enforces that exactly one of the two is given.
         _ => unreachable!("exactly one of `--output-file`/`--output-dir` must be given"),
     };
-    let settings = Settings {
-        language: args.language.clone().into(),
-        avro_version: args.avro_version.clone().into(),
-        layout,
-        rust: RustOptions {
-            types: args.rust_types.clone().into(),
-            time: args.rust_time.clone().into(),
-            derives: args.rust_derives.clone(),
-        },
-    };
+    let settings = Settings::default()
+        .with_language(args.language.clone().into())
+        .with_avro_version(args.avro_version.clone().into())
+        .with_layout(layout)
+        .with_rust(
+            RustOptions::default()
+                .with_types(args.rust_types.clone().into())
+                .with_time(args.rust_time.clone().into())
+                .with_derives(args.rust_derives.clone()),
+        );
     let files = avrox::generate(&schema, &settings)
         .with_context(|| format!("failed to generate code from `{}`", args.input.display()))?;
     write_output(args, &output, &files)

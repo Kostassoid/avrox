@@ -40,6 +40,20 @@
 //! assert_eq!(files[0].path, "user.rs");
 //! # Ok::<(), avrox::Error>(())
 //! ```
+//!
+//! Settings can be assembled and adjusted incrementally with the `with_*`
+//! methods:
+//!
+//! ```
+//! let settings = avrox::Settings::new()
+//!     .with_layout(avrox::Layout::Module)
+//!     .with_rust_types(avrox::RustTypes::Std)
+//!     .with_rust_time(avrox::RustTime::Chrono)
+//!     .with_rust_derives(["Hash", "derive_more::Display"]);
+//!
+//! assert_eq!(settings.layout, avrox::Layout::Module);
+//! assert_eq!(settings.rust.derives.len(), 2);
+//! ```
 
 mod codegen;
 pub mod error;
@@ -74,6 +88,140 @@ impl Default for Settings {
     }
 }
 
+impl Settings {
+    /// Creates settings with the same values as [`Settings::default`].
+    ///
+    /// Handy as the starting point of a builder chain:
+    ///
+    /// ```
+    /// let settings = avrox::Settings::new()
+    ///     .with_layout(avrox::Layout::Module)
+    ///     .with_rust_types(avrox::RustTypes::Std);
+    /// ```
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the target language.
+    #[must_use]
+    pub fn with_language(mut self, language: Language) -> Self {
+        self.language = language;
+        self
+    }
+
+    /// Sets the Avro specification version the schema is written against.
+    #[must_use]
+    pub fn with_avro_version(mut self, avro_version: AvroVersion) -> Self {
+        self.avro_version = avro_version;
+        self
+    }
+
+    /// Sets how the generated code is split into files.
+    #[must_use]
+    pub fn with_layout(mut self, layout: Layout) -> Self {
+        self.layout = layout;
+        self
+    }
+
+    /// Replaces the Rust code generation options.
+    #[must_use]
+    pub fn with_rust(mut self, rust: RustOptions) -> Self {
+        self.rust = rust;
+        self
+    }
+
+    /// Sets which types the generated Rust code uses.
+    #[must_use]
+    pub fn with_rust_types(mut self, types: RustTypes) -> Self {
+        self.rust.types = types;
+        self
+    }
+
+    /// Sets how time-related logical types are represented in Rust.
+    #[must_use]
+    pub fn with_rust_time(mut self, time: RustTime) -> Self {
+        self.rust.time = time;
+        self
+    }
+
+    /// Adds a derive to generated Rust records, enums and union enums.
+    ///
+    /// Common derives can be given by their short name (`Hash`); derives from
+    /// other crates should use their fully qualified path
+    /// (`derive_more::Display`).
+    #[must_use]
+    pub fn with_rust_derive(mut self, derive: impl Into<String>) -> Self {
+        self.rust.derives.push(derive.into());
+        self
+    }
+
+    /// Replaces the additional derives of generated Rust records, enums and
+    /// union enums.
+    #[must_use]
+    pub fn with_rust_derives<I, S>(mut self, derives: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.rust.derives = derives.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// Sets the target language in place and returns the settings.
+    pub fn set_language(&mut self, language: Language) -> &mut Self {
+        self.language = language;
+        self
+    }
+
+    /// Sets the Avro specification version in place and returns the settings.
+    pub fn set_avro_version(&mut self, avro_version: AvroVersion) -> &mut Self {
+        self.avro_version = avro_version;
+        self
+    }
+
+    /// Sets the output layout in place and returns the settings.
+    pub fn set_layout(&mut self, layout: Layout) -> &mut Self {
+        self.layout = layout;
+        self
+    }
+
+    /// Replaces the Rust code generation options in place and returns the
+    /// settings.
+    pub fn set_rust(&mut self, rust: RustOptions) -> &mut Self {
+        self.rust = rust;
+        self
+    }
+
+    /// Sets which types the generated Rust code uses, in place.
+    pub fn set_rust_types(&mut self, types: RustTypes) -> &mut Self {
+        self.rust.types = types;
+        self
+    }
+
+    /// Sets how time-related logical types are represented in Rust, in place.
+    pub fn set_rust_time(&mut self, time: RustTime) -> &mut Self {
+        self.rust.time = time;
+        self
+    }
+
+    /// Replaces the additional derives of generated Rust types, in place.
+    pub fn set_rust_derives<I, S>(&mut self, derives: I) -> &mut Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.rust.derives = derives.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// Adds a derive to generated Rust types, in place.
+    pub fn add_rust_derive(&mut self, derive: impl Into<String>) -> &mut Self {
+        self.rust.derives.push(derive.into());
+        self
+    }
+}
+
 /// Options for Rust code generation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RustOptions {
@@ -100,6 +248,79 @@ impl Default for RustOptions {
             time: RustTime::Primitives,
             derives: Vec::new(),
         }
+    }
+}
+
+impl RustOptions {
+    /// Creates options with the same values as [`RustOptions::default`].
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets which types the generated code uses.
+    #[must_use]
+    pub fn with_types(mut self, types: RustTypes) -> Self {
+        self.types = types;
+        self
+    }
+
+    /// Sets how time-related logical types are represented.
+    #[must_use]
+    pub fn with_time(mut self, time: RustTime) -> Self {
+        self.time = time;
+        self
+    }
+
+    /// Adds a derive to generated records, enums and union enums.
+    ///
+    /// Common derives can be given by their short name (`Hash`); derives from
+    /// other crates should use their fully qualified path
+    /// (`derive_more::Display`).
+    #[must_use]
+    pub fn with_derive(mut self, derive: impl Into<String>) -> Self {
+        self.derives.push(derive.into());
+        self
+    }
+
+    /// Replaces the additional derives of generated records, enums and union
+    /// enums.
+    #[must_use]
+    pub fn with_derives<I, S>(mut self, derives: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.derives = derives.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// Sets which types the generated code uses, in place.
+    pub fn set_types(&mut self, types: RustTypes) -> &mut Self {
+        self.types = types;
+        self
+    }
+
+    /// Sets how time-related logical types are represented, in place.
+    pub fn set_time(&mut self, time: RustTime) -> &mut Self {
+        self.time = time;
+        self
+    }
+
+    /// Replaces the additional derives, in place.
+    pub fn set_derives<I, S>(&mut self, derives: I) -> &mut Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.derives = derives.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// Adds a derive, in place.
+    pub fn add_derive(&mut self, derive: impl Into<String>) -> &mut Self {
+        self.derives.push(derive.into());
+        self
     }
 }
 

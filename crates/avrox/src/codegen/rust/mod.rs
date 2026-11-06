@@ -20,7 +20,7 @@
 
 use crate::error::Result;
 use crate::schema::Document;
-use crate::{GeneratedFile, Layout, RustOptions};
+use crate::{GeneratedFile, Settings};
 
 mod decorators;
 mod derives;
@@ -37,11 +37,7 @@ mod union;
 mod tests;
 
 /// Generates Rust source files for the schema document.
-pub(super) fn generate(
-    document: &Document,
-    layout: Layout,
-    options: RustOptions,
-) -> Result<Vec<GeneratedFile>> {
-    let model = model::Model::new(document, options)?;
-    emit::render(&model, layout)
+pub(super) fn generate(document: &Document, settings: &Settings) -> Result<Vec<GeneratedFile>> {
+    let model = model::Model::new(document, settings.rust.clone())?;
+    emit::render(&model, settings)
 }
