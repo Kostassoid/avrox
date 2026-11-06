@@ -3,6 +3,7 @@
 pub(crate) mod extract_schema;
 pub(crate) mod generate;
 pub(crate) mod read;
+pub(crate) mod write;
 
 use anyhow::Result;
 
@@ -14,5 +15,6 @@ pub(crate) fn run(cli: Cli) -> Result<()> {
         Commands::Generate(args) => generate::run(&args),
         Commands::ExtractSchema(args) => extract_schema::run(&args),
         Commands::Read(args) => read::run(&args),
+        Commands::Write(args) => write::run(&args),
     }
 }

@@ -21,12 +21,13 @@ language.
 cargo run -p avrox-cli -- generate path/to/schema.avsc --output-file src/gen.rs
 cargo run -p avrox-cli -- generate path/to/schema.avsc --output-dir src/gen
 cargo run -p avrox-cli -- read path/to/data.avro
+cargo run -p avrox-cli -- write path/to/new.avro path/to/schema.avsc path/to/records.jsonl
 cargo run -p avrox-cli -- --help
 ```
 
 The CLI is organized as subcommands: `generate` (code generation, see below),
-`extract-schema` (schema extraction from data files) and `read` (record
-exploration).
+`extract-schema` (schema extraction from data files), `read` (record
+exploration) and `write` (record creation).
 `generate`'s options include `--language` (currently `rust`), `--avro-version`
 (`1.10`, `1.11` or `1.12`, the default), `--rust-types` and `--rust-time`.
 Exactly one of the two output options must be given:
@@ -86,6 +87,22 @@ print as arrays of numbers. Time-related logical types print their underlying
 integers by default and durations print as `{"months", "days", "millis"}`
 objects; `--human-readable` renders dates as ISO 8601 dates, times and
 timestamps as ISO 8601 date-times and durations as ISO 8601 durations instead.
+
+`write` creates an Avro data file from JSON records, one record per line. The
+output path and schema path are required; the JSONL input path is optional and
+standard input is used when it is omitted:
+
+```sh
+cargo run -p avrox-cli -- write path/to/new.avro path/to/schema.avsc records.jsonl
+cargo run -p avrox-cli -- write --human-readable path/to/new.avro path/to/schema.avsc < records.jsonl
+```
+
+Every record must match the schema. Requirements and defaults are enforced:
+missing fields are filled from the schema default or, for nullable fields,
+with `null`; missing required fields, unknown fields, invalid enum symbols and
+type mismatches fail immediately with the offending line and JSON path. With
+`--human-readable`, dates, times, timestamps and durations are read from the
+same ISO 8601 formats produced by `read --human-readable`.
 
 From Rust:
 

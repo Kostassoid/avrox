@@ -150,8 +150,18 @@ fn human_readable_json(human_readable: bool, readable: Option<String>, fallback:
 }
 
 fn number(value: f64) -> Json {
-    serde_json::Number::from_f64(value)
-        .map_or_else(|| Json::String(value.to_string()), Json::Number)
+    if value.is_nan() {
+        return Json::String("NaN".to_owned());
+    }
+    if value.is_infinite() {
+        let text = if value.is_sign_negative() {
+            "-Infinity"
+        } else {
+            "Infinity"
+        };
+        return Json::String(text.to_owned());
+    }
+    serde_json::Number::from_f64(value).map_or(Json::Null, Json::Number)
 }
 
 fn bytes_to_json(bytes: &[u8]) -> Json {

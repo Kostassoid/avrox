@@ -2,7 +2,9 @@
 
 use clap::Parser;
 
-use crate::commands::{extract_schema::ExtractSchema, generate::Generate, read::Read};
+use crate::commands::{
+    extract_schema::ExtractSchema, generate::Generate, read::Read, write::Write,
+};
 
 /// Command line frontend for the `avrox` code generator.
 #[derive(Debug, Parser)]
@@ -22,4 +24,6 @@ pub(crate) enum Commands {
     /// Read records from an Avro data file and print them as JSON to stdout,
     /// one record per line.
     Read(Read),
+    /// Write JSON records to a new Avro data file according to a schema.
+    Write(Write),
 }

@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `avrox-cli read` subcommand: prints the records of an Avro data file as
   JSON lines for exploration and debugging, with an optional
   `--human-readable` mode for dates, times, timestamps and durations.
+- `avrox-cli write` subcommand: creates an Avro data file from a schema and
+  JSON lines read from a file or stdin, validating each record against the
+  schema and supporting the same `--human-readable` logical-type formats as
+  `read`.
 
 ### Changed
 
