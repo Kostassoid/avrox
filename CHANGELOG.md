@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Shell and PowerShell installers for `avrox-cli`, letting users download the
+  latest release and install it with a single command.
+
 ## [1.2.0] - 2026-11-06
 
 ### Added

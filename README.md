@@ -34,16 +34,39 @@ Known limitations:
 
 ## CLI
 
-All examples run through Cargo. If you have the `avrox-cli` binary installed,
-drop the `cargo run -p avrox-cli --` prefix. Every command accepts `--help`.
+### Installation
+
+The installer scripts download the latest release for your platform, install
+`avrox-cli` into your Cargo bin directory and add it to your `PATH`.
+
+macOS and Linux:
 
 ```sh
-cargo run -p avrox-cli -- generate path/to/schema.avsc --output-file src/gen.rs
-cargo run -p avrox-cli -- generate path/to/schema.avsc --output-dir src/gen
-cargo run -p avrox-cli -- extract-schema path/to/data.avro > schema.avsc
-cargo run -p avrox-cli -- read path/to/data.avro
-cargo run -p avrox-cli -- write path/to/new.avro path/to/schema.avsc path/to/records.jsonl
-cargo run -p avrox-cli -- --help
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/Kostassoid/avrox/releases/latest/download/avrox-cli-installer.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/Kostassoid/avrox/releases/latest/download/avrox-cli-installer.ps1 | iex"
+```
+
+Prebuilt binaries are available for Apple Silicon macOS, x86_64 and ARM64
+Linux, and x64 Windows. See the
+[releases page](https://github.com/Kostassoid/avrox/releases) for archives and
+checksums.
+
+### Usage
+
+The installed command is `avrox-cli`. Every subcommand accepts `--help`.
+
+```sh
+avrox-cli generate path/to/schema.avsc --output-file src/gen.rs
+avrox-cli generate path/to/schema.avsc --output-dir src/gen
+avrox-cli extract-schema path/to/data.avro > schema.avsc
+avrox-cli read path/to/data.avro
+avrox-cli write path/to/new.avro path/to/schema.avsc path/to/records.jsonl
+avrox-cli --help
 ```
 
 The CLI is organized as subcommands: `generate` (code generation),
@@ -112,7 +135,7 @@ requires `serde`, `serde_bytes` and `apache-avro`.
 piped:
 
 ```sh
-cargo run -p avrox-cli -- extract-schema path/to/data.avro > schema.avsc
+avrox-cli extract-schema path/to/data.avro > schema.avsc
 ```
 
 It stops reading as soon as it has reached the schema, so data files of any
@@ -124,8 +147,8 @@ Non-container files are rejected.
 `read` prints every record of an Avro data file as JSON, one record per line:
 
 ```sh
-cargo run -p avrox-cli -- read path/to/data.avro
-cargo run -p avrox-cli -- read --human-readable path/to/data.avro
+avrox-cli read path/to/data.avro
+avrox-cli read --human-readable path/to/data.avro
 ```
 
 The output is meant for exploration and debugging, so some Avro details are
@@ -143,8 +166,8 @@ output path and schema path are required; the JSONL input path is optional and
 standard input is used when it is omitted:
 
 ```sh
-cargo run -p avrox-cli -- write path/to/new.avro path/to/schema.avsc records.jsonl
-cargo run -p avrox-cli -- write --human-readable path/to/new.avro path/to/schema.avsc < records.jsonl
+avrox-cli write path/to/new.avro path/to/schema.avsc records.jsonl
+avrox-cli write --human-readable path/to/new.avro path/to/schema.avsc < records.jsonl
 ```
 
 Every record must match the schema. Requirements and defaults are enforced:
@@ -214,7 +237,8 @@ with [cargo-release](https://github.com/crate-ci/cargo-release) and use
 3. Pushing the tag triggers `.github/workflows/release.yml`, which builds
    `avrox-cli` for Windows (x86_64), Linux (x86_64 and aarch64) and macOS
    (aarch64), creates the GitHub Release with the matching changelog entry
-   as its notes, and uploads the archives with SHA-256 checksums.
+   as its notes, and uploads the archives, shell/PowerShell installers and
+   SHA-256 checksums.
 
 ## License
 
