@@ -1,0 +1,65 @@
+# Publish the workspace crates to crates.io.
+#
+# This workflow is invoked by cargo-dist as a publish job from release.yml
+# whenever a release tag is pushed. It is not triggered directly.
+name: Publish to crates.io
+
+on:
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
+  # Allows publishing the current workspace version manually (for example to
+  # publish a version whose tag predates this workflow).
+  workflow_dispatch:
+
+jobs:
+  publish:
+    name: Publish crates
+    runs-on: ubuntu-22.04
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Publish avrox and avrox-cli
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "avrox") | .version')
+
+          is_published() {
+            local crate="$1"
+            local prefix="${crate:0:2}/${crate:2:2}"
+            curl -fsSL "https://index.crates.io/${prefix}/${crate}" | grep -q "\"vers\":\"${version}\""
+          }
+
+          publish() {
+            local crate="$1"
+            if is_published "$crate"; then
+              echo "${crate} ${version} is already published, skipping"
+              return
+            fi
+
+            echo "Publishing ${crate} ${version}"
+            cargo publish -p "$crate" --locked
+
+            echo "Waiting for ${crate} ${version} to appear in the crates.io index"
+            for _ in $(seq 1 60); do
+              if is_published "$crate"; then
+                echo "${crate} ${version} is available on crates.io"
+                return
+              fi
+              sleep 5
+            done
+
+            echo "Timed out waiting for ${crate} ${version}" >&2
+            exit 1
+          }
+
+          publish avrox
+          publish avrox-cli

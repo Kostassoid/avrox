@@ -36,8 +36,15 @@ Known limitations:
 
 ### Installation
 
-The installer scripts download the latest release for your platform, install
-`avrox-cli` into your Cargo bin directory and add it to your `PATH`.
+Install from crates.io with Cargo:
+
+```sh
+cargo install avrox-cli
+```
+
+Alternatively, the installer scripts download the latest prebuilt release for
+your platform, install `avrox-cli` into your Cargo bin directory and add it to
+your `PATH`.
 
 macOS and Linux:
 
@@ -180,8 +187,13 @@ same ISO 8601 formats produced by `read --human-readable`.
 
 ## Library
 
-Add the `avrox` crate as a dependency and call `generate` with a schema in
-JSON format and a `Settings` value:
+Add the `avrox` crate from crates.io as a dependency:
+
+```sh
+cargo add avrox
+```
+
+Then call `generate` with a schema in JSON format and a `Settings` value:
 
 ```rust
 let schema = std::fs::read_to_string("path/to/schema.avsc")?;
@@ -343,6 +355,11 @@ with [cargo-release](https://github.com/crate-ci/cargo-release) and use
    (aarch64), creates the GitHub Release with the matching changelog entry
    as its notes, and uploads the archives, shell/PowerShell installers and
    SHA-256 checksums.
+4. The same release publishes the `avrox` and `avrox-cli` crates to crates.io
+   through `.github/workflows/publish-crates.yml`. This requires a
+   `CARGO_REGISTRY_TOKEN` repository secret with permission to publish both
+   crates. The workflow can also be run manually from the Actions tab to
+   publish the current workspace version.
 
 ## License
 

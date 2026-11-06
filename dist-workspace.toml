@@ -9,6 +9,10 @@ cargo-dist-version = "0.34.0"
 ci = "github"
 # The installers to generate for each app
 installers = ["shell", "powershell"]
+# Publish jobs to run in CI
+publish-jobs = ["./publish-crates"]
+# Custom permissions for GitHub jobs
+github-custom-job-permissions = { "publish-crates" = { contents = "read" } }
 # Target platforms to build apps for (Rust target-triple syntax)
 targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
 # Where to host releases

@@ -44,5 +44,6 @@ lto = "thin"
 [workspace.metadata.release]
 shared-version = true
 tag-name = "v{{version}}"
-# Releases go to GitHub Releases only, not crates.io.
+# cargo-release does not publish directly; crates are published to crates.io
+# from CI when the release tag is pushed (see .github/workflows/publish-crates.yml).
 publish = false

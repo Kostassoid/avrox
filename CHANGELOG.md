@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The `avrox` library and `avrox-cli` executable are now published to
+  crates.io on every release, so the CLI can be installed with
+  `cargo install avrox-cli` and the library added with `cargo add avrox`.
+
 ## [1.4.0] - 2026-11-06
 
 ## [1.3.0] - 2026-11-06
