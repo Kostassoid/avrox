@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-11-06
+
 ### Added
 
 - The `avrox` library and `avrox-cli` executable are now published to
