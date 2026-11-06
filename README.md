@@ -6,31 +6,56 @@
 
 Avro code generator, in the spirit of `protoc`: takes `.avsc` schemas and
 produces strongly typed code with serialization boilerplate for a target
-language.
+language. The workspace also ships a CLI for generating code and inspecting or
+creating Avro data files.
 
-## Workspace
+## Overview
 
 | Crate | Description |
 | --- | --- |
 | [`avrox`](crates/avrox) | Library: schema parsing, validation and code generation. |
 | [`avrox-cli`](crates/avrox-cli) | Command line frontend built on top of the library. |
 
-## Usage
+Schemas can target Avro `1.10`, `1.11` or `1.12` (the default). Logical types
+introduced in later versions are version-gated.
+
+Known limitations:
+
+- code generation currently targets Rust only;
+- schemas whose types map to colliding Rust names across namespaces are
+  rejected;
+- Avro protocols (`.avpr`) are not supported;
+- uuid logical types on `string` stay `String` in `avro` mode because
+  `apache_avro::Uuid` serializes as bytes in binary mode, which a string-based
+  uuid schema rejects;
+- `read` and `write` focus on exploration and debugging: union branches are
+  flattened, bytes/fixed/decimal values use byte arrays, BigDecimal values use
+  strings, and not every detail of Avro's JSON encoding is implemented.
+
+## CLI
+
+All examples run through Cargo. If you have the `avrox-cli` binary installed,
+drop the `cargo run -p avrox-cli --` prefix. Every command accepts `--help`.
 
 ```sh
 cargo run -p avrox-cli -- generate path/to/schema.avsc --output-file src/gen.rs
 cargo run -p avrox-cli -- generate path/to/schema.avsc --output-dir src/gen
+cargo run -p avrox-cli -- extract-schema path/to/data.avro > schema.avsc
 cargo run -p avrox-cli -- read path/to/data.avro
 cargo run -p avrox-cli -- write path/to/new.avro path/to/schema.avsc path/to/records.jsonl
 cargo run -p avrox-cli -- --help
 ```
 
-The CLI is organized as subcommands: `generate` (code generation, see below),
+The CLI is organized as subcommands: `generate` (code generation),
 `extract-schema` (schema extraction from data files), `read` (record
 exploration) and `write` (record creation).
-`generate`'s options include `--language` (currently `rust`), `--avro-version`
-(`1.10`, `1.11` or `1.12`, the default), `--rust-types` and `--rust-time`.
-Exactly one of the two output options must be given:
+
+### Generate code
+
+`generate` takes a schema and writes generated code. Its options include
+`--language` (currently `rust`), `--avro-version` (`1.10`, `1.11` or `1.12`,
+the default), `--rust-types` and `--rust-time`. Exactly one of the two output
+options must be given:
 
 - `--output-file <FILE>`: single-file layout — everything in one file,
   written to the given path; the file name proposed by the generator is
@@ -61,56 +86,7 @@ Exactly one of the two output options must be given:
   with `serde` implementations that encode them as the Avro integers of their
   logical types. The consuming crate needs `chrono` 0.4.40 or later.
 
-`extract-schema` prints the schema stored in the header of an Avro data file
-(`.avro`) to standard output and nothing else, so it can be redirected or
-piped:
-
-```sh
-cargo run -p avrox-cli -- extract-schema path/to/data.avro > schema.avsc
-```
-
-It stops reading as soon as it has reached the schema, so data files of any
-size work. The output is byte-identical to the schema as stored in the file.
-Non-container files are rejected.
-
-`read` prints every record of an Avro data file as JSON, one record per line:
-
-```sh
-cargo run -p avrox-cli -- read path/to/data.avro
-cargo run -p avrox-cli -- read --human-readable path/to/data.avro
-```
-
-The output is meant for exploration and debugging, so some Avro details are
-flattened: union branches are unwrapped, enums print their symbol, UUIDs print
-as strings, big decimals print as strings, and bytes, fixed and decimal values
-print as arrays of numbers. Time-related logical types print their underlying
-integers by default and durations print as `{"months", "days", "millis"}`
-objects; `--human-readable` renders dates as ISO 8601 dates, times and
-timestamps as ISO 8601 date-times and durations as ISO 8601 durations instead.
-
-`write` creates an Avro data file from JSON records, one record per line. The
-output path and schema path are required; the JSONL input path is optional and
-standard input is used when it is omitted:
-
-```sh
-cargo run -p avrox-cli -- write path/to/new.avro path/to/schema.avsc records.jsonl
-cargo run -p avrox-cli -- write --human-readable path/to/new.avro path/to/schema.avsc < records.jsonl
-```
-
-Every record must match the schema. Requirements and defaults are enforced:
-missing fields are filled from the schema default or, for nullable fields,
-with `null`; missing required fields, unknown fields, invalid enum symbols and
-type mismatches fail immediately with the offending line and JSON path. With
-`--human-readable`, dates, times, timestamps and durations are read from the
-same ISO 8601 formats produced by `read --human-readable`.
-
-From Rust:
-
-```rust
-let files = avrox::generate(schema_json, &avrox::Settings::default())?;
-```
-
-## Generated Rust code
+#### Generated Rust code
 
 The generated code integrates with the [`apache-avro`](https://docs.rs/apache-avro)
 crate through `serde`:
@@ -129,16 +105,71 @@ Both modes round-trip through `apache-avro`'s binary codec; `std` mode
 requires only `serde` (with `derive`) as a direct dependency, `avro` mode
 requires `serde`, `serde_bytes` and `apache-avro`.
 
-Known limitations: schemas whose types map to colliding Rust names across
-namespaces are rejected, Avro protocols (`.avpr`) are not supported, and
-uuid logical types on `string` stay `String` in `avro` mode because
-`apache_avro::Uuid` serializes as bytes in binary mode, which a string-based
-uuid schema rejects.
+### Extract a schema
 
-## Development
+`extract-schema` prints the schema stored in the header of an Avro data file
+(`.avro`) to standard output and nothing else, so it can be redirected or
+piped:
 
-Common commands are available as [`just`](https://just.systems) recipes — run
-`just --list` to see them all:
+```sh
+cargo run -p avrox-cli -- extract-schema path/to/data.avro > schema.avsc
+```
+
+It stops reading as soon as it has reached the schema, so data files of any
+size work. The output is byte-identical to the schema as stored in the file.
+Non-container files are rejected.
+
+### Read records
+
+`read` prints every record of an Avro data file as JSON, one record per line:
+
+```sh
+cargo run -p avrox-cli -- read path/to/data.avro
+cargo run -p avrox-cli -- read --human-readable path/to/data.avro
+```
+
+The output is meant for exploration and debugging, so some Avro details are
+flattened: union branches are unwrapped, enums print their symbol, UUIDs print
+as strings, big decimals print as strings, and bytes, fixed and decimal values
+print as arrays of numbers. Time-related logical types print their underlying
+integers by default and durations print as `{"months", "days", "millis"}`
+objects; `--human-readable` renders dates as ISO 8601 dates, times and
+timestamps as ISO 8601 date-times and durations as ISO 8601 durations instead.
+
+### Write records
+
+`write` creates an Avro data file from JSON records, one record per line. The
+output path and schema path are required; the JSONL input path is optional and
+standard input is used when it is omitted:
+
+```sh
+cargo run -p avrox-cli -- write path/to/new.avro path/to/schema.avsc records.jsonl
+cargo run -p avrox-cli -- write --human-readable path/to/new.avro path/to/schema.avsc < records.jsonl
+```
+
+Every record must match the schema. Requirements and defaults are enforced:
+missing fields are filled from the schema default or, for nullable fields,
+with `null`; missing required fields, unknown fields, invalid enum symbols and
+type mismatches fail immediately with the offending line and JSON path. With
+`--human-readable`, dates, times, timestamps and durations are read from the
+same ISO 8601 formats produced by `read --human-readable`.
+
+## Library
+
+Add the `avrox` crate as a dependency and call `generate`:
+
+```rust
+let files = avrox::generate(schema_json, &avrox::Settings::default())?;
+```
+
+`Settings` controls the target language, Avro version, output layout and
+language-specific options. The result is a list of generated files, each
+pairing a relative path with its contents.
+
+## Contributing
+
+Contributions are welcome. Common commands are available as
+[`just`](https://just.systems) recipes — run `just --list` to see them all:
 
 ```sh
 just ci      # run the same checks as CI (fmt, clippy, build, test)
@@ -156,7 +187,17 @@ cargo clippy --workspace --all-targets
 cargo fmt --all --check
 ```
 
-## Releasing
+### Testing
+
+Testing uses three layers:
+
+- unit tests for the parser, naming and generator internals;
+- black-box snapshot tests under `tests/cases`: every case is a directory with
+  a `schema.avsc`, optional `settings.json`, and either an `expected/` directory
+  with the expected generated files or an `error.txt` with the expected error;
+- the snapshot expectations can be regenerated with `AVROX_BLESS=1 cargo test`.
+
+### Releasing
 
 Releases are built by [dist](https://axodotdev.github.io/cargo-dist), cut
 with [cargo-release](https://github.com/crate-ci/cargo-release) and use
@@ -174,14 +215,6 @@ with [cargo-release](https://github.com/crate-ci/cargo-release) and use
    `avrox-cli` for Windows (x86_64), Linux (x86_64 and aarch64) and macOS
    (aarch64), creates the GitHub Release with the matching changelog entry
    as its notes, and uploads the archives with SHA-256 checksums.
-
-Testing uses three layers:
-
-- unit tests for the parser, naming and generator internals;
-- black-box snapshot tests under `tests/cases`: every case is a directory with
-  a `schema.avsc`, optional `settings.json`, and either an `expected/` directory
-  with the expected generated files or an `error.txt` with the expected error;
-- the snapshot expectations can be regenerated with `AVROX_BLESS=1 cargo test`.
 
 ## License
 
