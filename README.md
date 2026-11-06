@@ -18,12 +18,13 @@ language.
 ## Usage
 
 ```sh
-cargo run -p avrox-cli -- path/to/schema.avsc --output-file src/gen.rs
-cargo run -p avrox-cli -- path/to/schema.avsc --output-dir src/gen
+cargo run -p avrox-cli -- generate path/to/schema.avsc --output-file src/gen.rs
+cargo run -p avrox-cli -- generate path/to/schema.avsc --output-dir src/gen
 cargo run -p avrox-cli -- --help
 ```
 
-Options include `--language` (currently `rust`), `--avro-version`
+The CLI is organized as subcommands; `generate` is currently the only one.
+Its options include `--language` (currently `rust`), `--avro-version`
 (`1.10`, `1.11` or `1.12`, the default), `--rust-types` and `--rust-time`.
 Exactly one of the two output options must be given:
 
@@ -96,7 +97,7 @@ Common commands are available as [`just`](https://just.systems) recipes — run
 just ci      # run the same checks as CI (fmt, clippy, build, test)
 just test    # run all tests
 just bless   # regenerate the expected outputs under tests/cases
-just run path/to/schema.avsc --output-dir src/gen  # run the CLI
+just run generate path/to/schema.avsc --output-dir src/gen  # run the CLI
 ```
 
 Without `just`, the equivalent raw commands are:

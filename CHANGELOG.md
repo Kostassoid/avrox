@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `avrox-cli` is now organized as subcommands: code generation moved under
+  `avrox generate <schema.avsc> ...`, taking the former top-level arguments.
+  Invoking the tool with a bare schema path is no longer accepted.
+
 ## [1.1.0] - 2026-11-05
 
 ### Added
