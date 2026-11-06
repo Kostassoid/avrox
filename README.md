@@ -6,7 +6,7 @@
 
 Avro code generator, in the spirit of `protoc`: takes `.avsc` schemas and
 produces strongly typed code with serialization boilerplate for a target
-language. The workspace also ships a CLI for generating code and inspecting or
+language. Additionally, the CLI provides a command-line interface for generating code and inspecting or
 creating Avro data files.
 
 ## Overview
@@ -81,13 +81,9 @@ the default), `--rust-types`, `--rust-time` and `--rust-derive`. Exactly one of
 the two output options must be given:
 
 - `--output-file <FILE>`: single-file layout — everything in one file,
-  written to the given path; the file name proposed by the generator is
-  ignored;
-- `--output-dir <DIR>`: module layout — one file per named type plus an
-  index file declaring and re-exporting them. For Rust (currently the only
-  supported language) that index file is a `mod.rs` which also holds the
-  generated union enums, so the result can be used as a module directory
-  as is.
+  written to the given path;
+- `--output-dir <DIR>`: module layout — target directory is fully dedicated to generated types, allowing for 
+  better readability. Each named type is written to a separate file.
 - `--rust-types avro` (default): generated types rely on the official
   [`apache-avro`](https://docs.rs/apache-avro) crate — `bytes`/`fixed` use
   `serde_bytes`, and the `uuid`/`decimal`/`duration` logical types become
@@ -156,7 +152,7 @@ avrox-cli read path/to/data.avro
 avrox-cli read --human-readable path/to/data.avro
 ```
 
-The output is meant for exploration and debugging, so some Avro details are
+The output is meant mostly for exploration and debugging, so some Avro details are
 flattened: union branches are unwrapped, enums print their symbol, UUIDs print
 as strings, big decimals print as strings, and bytes, fixed and decimal values
 print as arrays of numbers. Time-related logical types print their underlying
