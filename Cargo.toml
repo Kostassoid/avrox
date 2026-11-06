@@ -8,6 +8,7 @@ authors = ["Konstantin Alexandroff <k.alexandroff@gmail.com>"]
 edition = "2024"
 rust-version = "1.91"
 license = "MIT"
+readme = "README.md"
 repository = "https://github.com/Kostassoid/avrox"
 
 [workspace.dependencies]

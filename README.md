@@ -1,5 +1,5 @@
 <div align="center">
-<img src="assets/logo.svg" alt="Logo" />
+<img src="https://raw.githubusercontent.com/Kostassoid/avrox/main/assets/logo.svg" alt="Logo" />
 </div>
 
 # avrox
@@ -13,8 +13,8 @@ creating Avro data files.
 
 | Crate | Description |
 | --- | --- |
-| [`avrox`](crates/avrox) | Library: schema parsing, validation and code generation. |
-| [`avrox-cli`](crates/avrox-cli) | Command line frontend built on top of the library. |
+| [`avrox`](https://github.com/Kostassoid/avrox/tree/main/crates/avrox) | Library: schema parsing, validation and code generation. |
+| [`avrox-cli`](https://github.com/Kostassoid/avrox/tree/main/crates/avrox-cli) | Command line frontend built on top of the library. |
 
 Schemas can target Avro `1.10`, `1.11` or `1.12` (the default). Logical types
 introduced in later versions are version-gated.
