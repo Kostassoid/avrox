@@ -1,0 +1,498 @@
+{
+    "type": "record",
+    "name": "UserProfile",
+    "namespace": "com.example.profile",
+    "aliases": ["Profile"],
+    "doc": "A user profile exercising every Avro feature supported by avrox.",
+    "fields": [
+        {
+            "name": "id",
+            "type": {
+                "type": "string",
+                "logicalType": "uuid"
+            },
+            "doc": "Stable identifier of the profile, as a UUID string."
+        },
+        {
+            "name": "deviceId",
+            "type": {
+                "type": "fixed",
+                "name": "DeviceId",
+                "size": 16,
+                "logicalType": "uuid"
+            },
+            "doc": "Identifier of the device the profile was created on, as a 16-byte UUID."
+        },
+        {
+            "name": "username",
+            "type": "string",
+            "aliases": ["handle"],
+            "doc": "Unique login name."
+        },
+        {
+            "name": "fullName",
+            "type": "string",
+            "doc": "Display name of the user."
+        },
+        {
+            "name": "email",
+            "type": "string",
+            "doc": "Primary email address."
+        },
+        {
+            "name": "emailVerified",
+            "type": "boolean",
+            "default": false,
+            "doc": "Whether the primary email address has been verified."
+        },
+        {
+            "name": "status",
+            "type": {
+                "type": "enum",
+                "name": "AccountStatus",
+                "aliases": ["Status"],
+                "doc": "Lifecycle state of the account.",
+                "symbols": ["UNKNOWN", "PENDING", "ACTIVE", "SUSPENDED", "CLOSED"],
+                "default": "UNKNOWN"
+            },
+            "default": "PENDING",
+            "doc": "Current lifecycle state."
+        },
+        {
+            "name": "role",
+            "type": {
+                "type": "enum",
+                "name": "UserRole",
+                "doc": "Authorization role of the user.",
+                "symbols": ["ADMIN", "MODERATOR", "MEMBER", "GUEST"],
+                "default": "MEMBER"
+            },
+            "default": "MEMBER",
+            "doc": "Current authorization role."
+        },
+        {
+            "name": "birthday",
+            "type": {
+                "type": "int",
+                "logicalType": "date"
+            },
+            "doc": "Date of birth, as days from the unix epoch."
+        },
+        {
+            "name": "preferredCallTime",
+            "type": {
+                "type": "int",
+                "logicalType": "time-millis"
+            },
+            "doc": "Preferred time for phone calls, as milliseconds after midnight."
+        },
+        {
+            "name": "dailyDigestTime",
+            "type": {
+                "type": "long",
+                "logicalType": "time-micros"
+            },
+            "doc": "Time of day at which the daily digest is sent, as microseconds after midnight."
+        },
+        {
+            "name": "createdAt",
+            "type": {
+                "type": "long",
+                "logicalType": "timestamp-millis"
+            },
+            "doc": "Creation time, as milliseconds from the unix epoch."
+        },
+        {
+            "name": "updatedAt",
+            "type": {
+                "type": "long",
+                "logicalType": "timestamp-micros"
+            },
+            "doc": "Last update time, as microseconds from the unix epoch."
+        },
+        {
+            "name": "lastLoginAt",
+            "type": [
+                "null",
+                {
+                    "type": "long",
+                    "logicalType": "timestamp-millis"
+                }
+            ],
+            "default": null,
+            "doc": "Last successful login, if any."
+        },
+        {
+            "name": "lastActiveAt",
+            "type": [
+                "null",
+                {
+                    "type": "long",
+                    "logicalType": "timestamp-nanos"
+                }
+            ],
+            "default": null,
+            "doc": "Last observed activity, as nanoseconds from the unix epoch."
+        },
+        {
+            "name": "localSignupAt",
+            "type": {
+                "type": "long",
+                "logicalType": "local-timestamp-millis"
+            },
+            "doc": "Signup time in the user's local time zone, as milliseconds from the unix epoch."
+        },
+        {
+            "name": "localUpdatedAt",
+            "type": {
+                "type": "long",
+                "logicalType": "local-timestamp-micros"
+            },
+            "doc": "Last profile update in the user's local time zone, as microseconds from the unix epoch."
+        },
+        {
+            "name": "localLastSeenAt",
+            "type": [
+                "null",
+                {
+                    "type": "long",
+                    "logicalType": "local-timestamp-nanos"
+                }
+            ],
+            "default": null,
+            "doc": "Last seen time in the user's local time zone, as nanoseconds from the unix epoch."
+        },
+        {
+            "name": "accountBalance",
+            "type": {
+                "type": "bytes",
+                "logicalType": "decimal",
+                "precision": 12,
+                "scale": 2
+            },
+            "doc": "Account balance as a variable-length decimal with two fractional digits."
+        },
+        {
+            "name": "creditLimit",
+            "type": {
+                "type": "fixed",
+                "name": "Money",
+                "size": 8,
+                "logicalType": "decimal",
+                "precision": 18,
+                "scale": 6
+            },
+            "doc": "Credit limit as a fixed-width decimal with six fractional digits."
+        },
+        {
+            "name": "loyaltyPoints",
+            "type": "int",
+            "default": 0,
+            "doc": "Accrued loyalty points."
+        },
+        {
+            "name": "rating",
+            "type": "float",
+            "default": 0.0,
+            "order": "descending",
+            "doc": "Average rating of the user."
+        },
+        {
+            "name": "reputation",
+            "type": "double",
+            "default": 0.0,
+            "doc": "Reputation score with double precision."
+        },
+        {
+            "name": "avatar",
+            "type": ["null", "bytes"],
+            "default": null,
+            "doc": "Raw avatar image, if one has been uploaded."
+        },
+        {
+            "name": "avatarThumbnail",
+            "type": "bytes",
+            "default": "",
+            "doc": "Thumbnail bytes, empty until the first upload."
+        },
+        {
+            "name": "avatarHash",
+            "type": {
+                "type": "fixed",
+                "name": "Md5",
+                "size": 16,
+                "doc": "An MD5 checksum."
+            },
+            "doc": "MD5 checksum of the avatar image."
+        },
+        {
+            "name": "legacyAvatarHash",
+            "type": "Md5",
+            "doc": "Checksum of the previous avatar image, reusing the Md5 type."
+        },
+        {
+            "name": "sessionLimit",
+            "type": {
+                "type": "fixed",
+                "name": "SessionDuration",
+                "size": 12,
+                "logicalType": "duration",
+                "doc": "Months, days and milliseconds."
+            },
+            "doc": "Maximum session duration."
+        },
+        {
+            "name": "tags",
+            "type": {
+                "type": "array",
+                "items": "string"
+            },
+            "default": ["new-user"],
+            "doc": "Free-form tags attached to the profile."
+        },
+        {
+            "name": "nicknames",
+            "type": {
+                "type": "array",
+                "items": ["null", "string"]
+            },
+            "default": [],
+            "doc": "Optional nicknames, including holes for cleared entries."
+        },
+        {
+            "name": "preferences",
+            "type": {
+                "type": "map",
+                "values": "string"
+            },
+            "default": {},
+            "doc": "Arbitrary string preferences keyed by name."
+        },
+        {
+            "name": "notificationChannels",
+            "type": {
+                "type": "map",
+                "values": ["null", "string"]
+            },
+            "default": {},
+            "doc": "Notification channel configuration; absent values are disabled."
+        },
+        {
+            "name": "primaryAddress",
+            "type": {
+                "type": "record",
+                "name": "Address",
+                "aliases": ["PostalAddress"],
+                "doc": "A postal address.",
+                "fields": [
+                    {
+                        "name": "kind",
+                        "type": {
+                            "type": "enum",
+                            "name": "AddressKind",
+                            "doc": "Purpose of an address.",
+                            "symbols": ["HOME", "WORK", "OTHER"],
+                            "default": "OTHER"
+                        },
+                        "default": "OTHER",
+                        "doc": "Purpose of this address."
+                    },
+                    {
+                        "name": "line1",
+                        "type": "string",
+                        "doc": "First line of the street address."
+                    },
+                    {
+                        "name": "line2",
+                        "type": ["null", "string"],
+                        "default": null,
+                        "doc": "Second line of the street address."
+                    },
+                    {
+                        "name": "city",
+                        "type": "string",
+                        "doc": "City name."
+                    },
+                    {
+                        "name": "region",
+                        "type": ["null", "string"],
+                        "default": null,
+                        "doc": "State, province or region."
+                    },
+                    {
+                        "name": "postalCode",
+                        "type": "string",
+                        "doc": "Postal or ZIP code."
+                    },
+                    {
+                        "name": "countryCode",
+                        "type": {
+                            "type": "fixed",
+                            "name": "CountryCode",
+                            "size": 2,
+                            "doc": "An ISO 3166-1 alpha-2 country code."
+                        },
+                        "default": "US",
+                        "doc": "Country of the address."
+                    },
+                    {
+                        "name": "coordinates",
+                        "type": {
+                            "type": "record",
+                            "name": "GeoPoint",
+                            "doc": "A WGS 84 coordinate pair.",
+                            "fields": [
+                                {
+                                    "name": "latitude",
+                                    "type": "double",
+                                    "default": 0.0,
+                                    "doc": "Latitude in degrees."
+                                },
+                                {
+                                    "name": "longitude",
+                                    "type": "double",
+                                    "default": 0.0,
+                                    "doc": "Longitude in degrees."
+                                }
+                            ]
+                        },
+                        "default": {
+                            "latitude": 0.0,
+                            "longitude": 0.0
+                        },
+                        "doc": "Geographic coordinates of the address."
+                    }
+                ]
+            },
+            "doc": "Primary postal address."
+        },
+        {
+            "name": "addresses",
+            "type": {
+                "type": "array",
+                "items": "Address"
+            },
+            "doc": "All postal addresses known for the profile."
+        },
+        {
+            "name": "primaryContact",
+            "type": {
+                "type": "record",
+                "name": "Contact",
+                "doc": "A way to reach the user.",
+                "fields": [
+                    {
+                        "name": "kind",
+                        "type": {
+                            "type": "enum",
+                            "name": "ContactKind",
+                            "doc": "Medium of a contact.",
+                            "symbols": ["EMAIL", "PHONE", "SOCIAL", "OTHER"],
+                            "default": "OTHER"
+                        },
+                        "default": "OTHER",
+                        "doc": "Medium of this contact."
+                    },
+                    {
+                        "name": "value",
+                        "type": "string",
+                        "doc": "Address, number or handle, depending on the kind."
+                    },
+                    {
+                        "name": "verified",
+                        "type": "boolean",
+                        "default": false,
+                        "doc": "Whether the contact has been verified."
+                    },
+                    {
+                        "name": "createdAt",
+                        "type": {
+                            "type": "long",
+                            "logicalType": "timestamp-micros"
+                        },
+                        "doc": "When the contact was added."
+                    }
+                ]
+            },
+            "doc": "Primary contact channel."
+        },
+        {
+            "name": "emergencyContacts",
+            "type": {
+                "type": "array",
+                "items": "Contact"
+            },
+            "doc": "Contacts to reach in an emergency."
+        },
+        {
+            "name": "verification",
+            "type": [
+                "null",
+                {
+                    "type": "record",
+                    "name": "EmailVerification",
+                    "doc": "A pending email verification.",
+                    "fields": [
+                        {
+                            "name": "email",
+                            "type": "string",
+                            "doc": "Email address being verified."
+                        },
+                        {
+                            "name": "code",
+                            "type": {
+                                "type": "fixed",
+                                "name": "VerificationCode",
+                                "size": 6,
+                                "doc": "Six-byte verification code."
+                            },
+                            "doc": "Verification code."
+                        },
+                        {
+                            "name": "expiresAt",
+                            "type": {
+                                "type": "long",
+                                "logicalType": "timestamp-millis"
+                            },
+                            "doc": "Expiry time of the code."
+                        }
+                    ]
+                },
+                {
+                    "type": "record",
+                    "name": "PhoneVerification",
+                    "doc": "A pending phone verification.",
+                    "fields": [
+                        {
+                            "name": "countryCode",
+                            "type": "CountryCode",
+                            "doc": "Country of the phone number."
+                        },
+                        {
+                            "name": "phoneNumber",
+                            "type": "string",
+                            "doc": "Phone number being verified."
+                        },
+                        {
+                            "name": "expiresAt",
+                            "type": {
+                                "type": "long",
+                                "logicalType": "timestamp-millis"
+                            },
+                            "doc": "Expiry time of the code."
+                        }
+                    ]
+                },
+                "string"
+            ],
+            "default": null,
+            "doc": "Pending verification, a human-readable note or nothing."
+        },
+        {
+            "name": "referredBy",
+            "type": ["null", "UserProfile"],
+            "default": null,
+            "doc": "The profile that referred this user, if any (a recursive reference)."
+        }
+    ]
+}
