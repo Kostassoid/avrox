@@ -194,3 +194,13 @@ pub enum DateTimeOrString {
     DateTime(chrono::DateTime<chrono::Utc>),
     String(String),
 }
+impl From<chrono::DateTime<chrono::Utc>> for DateTimeOrString {
+    fn from(value: chrono::DateTime<chrono::Utc>) -> Self {
+        Self::DateTime(value)
+    }
+}
+impl From<String> for DateTimeOrString {
+    fn from(value: String) -> Self {
+        Self::String(value)
+    }
+}

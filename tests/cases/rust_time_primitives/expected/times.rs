@@ -42,3 +42,13 @@ pub enum LongOrString {
     Long(i64),
     String(String),
 }
+impl From<i64> for LongOrString {
+    fn from(value: i64) -> Self {
+        Self::Long(value)
+    }
+}
+impl From<String> for LongOrString {
+    fn from(value: String) -> Self {
+        Self::String(value)
+    }
+}

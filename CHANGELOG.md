@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Generated union enums now implement `From` for every branch type, so a value
+  can be lifted into the union without naming the enum. Branches that would
+  produce conflicting implementations, such as two `fixed` types of the same
+  size in `avro` mode, are skipped.
+
 ### Changed
 
 - `--rust-time` and `RustOptions::time` now default to `chrono` instead of

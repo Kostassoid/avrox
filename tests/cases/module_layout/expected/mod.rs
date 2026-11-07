@@ -31,3 +31,23 @@ pub enum NullOrCardPaymentOrCashPaymentOrString {
     CashPayment(CashPayment),
     String(String),
 }
+impl From<()> for NullOrCardPaymentOrCashPaymentOrString {
+    fn from(value: ()) -> Self {
+        Self::Null(value)
+    }
+}
+impl From<CardPayment> for NullOrCardPaymentOrCashPaymentOrString {
+    fn from(value: CardPayment) -> Self {
+        Self::CardPayment(value)
+    }
+}
+impl From<CashPayment> for NullOrCardPaymentOrCashPaymentOrString {
+    fn from(value: CashPayment) -> Self {
+        Self::CashPayment(value)
+    }
+}
+impl From<String> for NullOrCardPaymentOrCashPaymentOrString {
+    fn from(value: String) -> Self {
+        Self::String(value)
+    }
+}

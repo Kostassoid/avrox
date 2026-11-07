@@ -134,6 +134,10 @@ through `serde`:
 - records become structs, enums become enums;
 - nullable unions (`["null", T]`) become `Option<T>`; other unions become
   generated enums with one newtype variant per branch, in branch order;
+- every branch of a union enum gets a `From` implementation that lifts the
+  value into it, so application code rarely has to name the enum; branches
+  whose lifted types collide, such as two `fixed` types of the same size in
+  `avro` mode, are skipped;
 - directly recursive references are boxed;
 - logical types are documented on the fields and types carrying them;
 - in `avro` mode, `uuid` over `string` becomes `apache_avro::Uuid` with a

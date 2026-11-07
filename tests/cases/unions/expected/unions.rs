@@ -39,6 +39,16 @@ pub enum IntOrString {
     Int(i32),
     String(String),
 }
+impl From<i32> for IntOrString {
+    fn from(value: i32) -> Self {
+        Self::Int(value)
+    }
+}
+impl From<String> for IntOrString {
+    fn from(value: String) -> Self {
+        Self::String(value)
+    }
+}
 /// Avro union of `Null`, `Circle`, `Square`, `String`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum NullOrCircleOrSquareOrString {
@@ -46,4 +56,24 @@ pub enum NullOrCircleOrSquareOrString {
     Circle(Circle),
     Square(Square),
     String(String),
+}
+impl From<()> for NullOrCircleOrSquareOrString {
+    fn from(value: ()) -> Self {
+        Self::Null(value)
+    }
+}
+impl From<Circle> for NullOrCircleOrSquareOrString {
+    fn from(value: Circle) -> Self {
+        Self::Circle(value)
+    }
+}
+impl From<Square> for NullOrCircleOrSquareOrString {
+    fn from(value: Square) -> Self {
+        Self::Square(value)
+    }
+}
+impl From<String> for NullOrCircleOrSquareOrString {
+    fn from(value: String) -> Self {
+        Self::String(value)
+    }
 }

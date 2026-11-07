@@ -223,6 +223,60 @@ fn generates_union_enums_and_deduplicates_them() {
 }
 
 #[test]
+fn union_enums_lift_branches_with_from_impls() {
+    let contents = contents_of(
+        r#"{"type": "record", "name": "R", "fields": [
+            {"name": "a", "type": ["int", "string"]},
+            {"name": "b", "type": ["null", "int", "string"]}
+        ]}"#,
+    );
+    assert!(contents.contains("impl From<i32> for IntOrString {"));
+    assert!(contents.contains("impl From<String> for IntOrString {"));
+    assert!(contents.contains("impl From<()> for NullOrIntOrString {"));
+    assert!(contents.contains("Self::Int(value)"));
+    assert!(contents.contains("Self::Null(value)"));
+}
+
+#[test]
+fn union_from_impls_box_recursive_branches() {
+    let contents = contents_of(
+        r#"{"type": "record", "name": "Node", "fields": [
+            {"name": "next", "type": ["null", "Node", "string"]}
+        ]}"#,
+    );
+    assert!(contents.contains("impl From<Node> for NullOrNodeOrString {"));
+    assert!(contents.contains("Self::Node(Box::new(value))"));
+}
+
+#[test]
+fn union_from_impls_skip_colliding_branch_types() {
+    // Two `fixed` types of the same size are aliases of the same Rust type in
+    // `avro` mode, so neither can get a `From` implementation.
+    let contents = contents_of(
+        r#"{"type": "record", "name": "R", "fields": [
+            {"name": "pair", "type": [
+                {"type": "fixed", "name": "A", "size": 4},
+                {"type": "fixed", "name": "B", "size": 4}
+            ]}
+        ]}"#,
+    );
+    assert!(contents.contains("pub enum AOrB {"));
+    assert!(!contents.contains("impl From<"));
+
+    // `uuid` over `string` and over `fixed` both map to `apache_avro::Uuid`.
+    let contents = contents_of(
+        r#"{"type": "record", "name": "R", "fields": [
+            {"name": "id", "type": [
+                {"type": "string", "logicalType": "uuid"},
+                {"type": "fixed", "name": "UuidBytes", "size": 16, "logicalType": "uuid"}
+            ]}
+        ]}"#,
+    );
+    assert!(contents.contains("pub enum UuidOrUuidBytes {"));
+    assert!(!contents.contains("impl From<"));
+}
+
+#[test]
 fn boxes_recursive_references() {
     let contents = contents_of(
         r#"{"type": "record", "name": "LongList", "fields": [

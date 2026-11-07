@@ -20,3 +20,18 @@ pub enum LongOrNullOrInt {
     Null(()),
     Int(i32),
 }
+impl From<i64> for LongOrNullOrInt {
+    fn from(value: i64) -> Self {
+        Self::Long(value)
+    }
+}
+impl From<()> for LongOrNullOrInt {
+    fn from(value: ()) -> Self {
+        Self::Null(value)
+    }
+}
+impl From<i32> for LongOrNullOrInt {
+    fn from(value: i32) -> Self {
+        Self::Int(value)
+    }
+}

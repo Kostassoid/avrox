@@ -42,3 +42,13 @@ pub enum IntOrString {
     Int(i32),
     String(String),
 }
+impl From<i32> for IntOrString {
+    fn from(value: i32) -> Self {
+        Self::Int(value)
+    }
+}
+impl From<String> for IntOrString {
+    fn from(value: String) -> Self {
+        Self::String(value)
+    }
+}

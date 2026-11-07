@@ -1,13 +1,13 @@
 //! Rendering of schema definitions and structural Rust types.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
-use proc_macro2::{Literal, TokenStream};
+use proc_macro2::{Ident, Literal, TokenStream};
 use quote::quote;
 
 use crate::RustTypes;
 use crate::error::{Error, Result};
-use crate::schema::{Enum, Field, Fixed, FullName, NamedType, Record, Schema};
+use crate::schema::{Enum, Field, Fixed, FullName, LogicalType, NamedType, Record, Schema};
 
 use super::decorators::Decorators;
 use super::emit::{FileContext, Import};
@@ -184,6 +184,7 @@ impl<'model, 'document> Renderer<'model, 'document> {
         let (ident, _) = naming::make_ident(name);
         let mut used: HashSet<String> = HashSet::new();
         let mut variants = Vec::with_capacity(union_info.branches.len());
+        let mut lifts = Vec::with_capacity(union_info.branches.len());
         for branch in &union_info.branches {
             let display = union::display_name(
                 branch,
@@ -194,10 +195,20 @@ impl<'model, 'document> Renderer<'model, 'document> {
             let variant_name = unique_variant_name(&display, &mut used);
             let (variant, _) = naming::make_ident(&variant_name);
             let ty = self.render_type(branch, Some(Node::Union(id)), true, context)?;
+            // Rendering without a container drops the `Box` a recursive branch
+            // may be stored in, giving the type a `From` impl can accept.
+            let source = self.render_type(branch, None, true, context)?;
+            let boxed = ty.to_string() != source.to_string();
             let with = self.serde_with(branch, context);
             variants.push(quote! {
                 #with
                 #variant(#ty),
+            });
+            lifts.push(Lift {
+                key: self.lift_key(branch, &source),
+                source,
+                variant,
+                boxed,
             });
         }
         let doc = format!(
@@ -218,13 +229,35 @@ impl<'model, 'document> Renderer<'model, 'document> {
             &["Debug", "Clone", "PartialEq", "Serialize", "Deserialize"],
             &self.model.derives,
         );
+        let from_impls = from_impls(&ident, lifts);
         Ok(quote! {
             #(#doc_attributes)*
             #derives
             pub enum #ident {
                 #(#variants)*
             }
+            #(#from_impls)*
         })
+    }
+
+    /// The key identifying the Rust type a union branch is lifted from.
+    ///
+    /// Type aliases are transparent, so branches that alias the same type must
+    /// share a key even though they are written differently.
+    fn lift_key(&self, branch: &Schema, source: &TokenStream) -> String {
+        // In `avro` mode a plain `fixed` is an alias of `ByteArray<N>`; only
+        // the logical types mapped to `apache-avro` types escape the alias.
+        if let Schema::Fixed(name) = branch
+            && self.model.options.types == RustTypes::ApacheAvro
+            && let Some(NamedType::Fixed(fixed)) = self.model.document.get(name)
+            && !matches!(
+                fixed.logical,
+                Some(LogicalType::Uuid | LogicalType::Decimal { .. } | LogicalType::Duration)
+            )
+        {
+            return format!("ByteArray<{}>", fixed.size);
+        }
+        source.to_string()
     }
 
     /// Renders the Rust type for a schema at a position nested inside
@@ -331,4 +364,53 @@ fn unique_variant_name(candidate: &str, used: &mut HashSet<String>) -> String {
         suffix += 1;
     }
     format!("{candidate}{suffix}")
+}
+
+/// `From` implementations lifting a branch value into the union enum, so
+/// callers do not have to name the enum for every branch.
+///
+/// Branches that lift from the same Rust type are skipped: two `From`
+/// implementations for one type would not compile, and picking one variant
+/// would be arbitrary.
+fn from_impls(ident: &Ident, branches: Vec<Lift>) -> Vec<TokenStream> {
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    for branch in &branches {
+        *counts.entry(branch.key.clone()).or_default() += 1;
+    }
+    branches
+        .into_iter()
+        .filter(|branch| counts.get(branch.key.as_str()) == Some(&1))
+        .map(|branch| {
+            let Lift {
+                source,
+                variant,
+                boxed,
+                ..
+            } = branch;
+            let value = if boxed {
+                quote!(Box::new(value))
+            } else {
+                quote!(value)
+            };
+            quote! {
+                impl From<#source> for #ident {
+                    fn from(value: #source) -> Self {
+                        Self::#variant(#value)
+                    }
+                }
+            }
+        })
+        .collect()
+}
+
+/// A union branch and the `From` implementation that lifts it.
+struct Lift {
+    /// Key identifying the lifted type, used to detect conflicts.
+    key: String,
+    /// The type a value is lifted from, without the `Box` of a stored branch.
+    source: TokenStream,
+    /// The variant the value is lifted into.
+    variant: Ident,
+    /// Whether the variant stores the value boxed.
+    boxed: bool,
 }

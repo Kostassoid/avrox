@@ -295,3 +295,13 @@ pub enum SystemTimeOrString {
     SystemTime(std::time::SystemTime),
     String(String),
 }
+impl From<std::time::SystemTime> for SystemTimeOrString {
+    fn from(value: std::time::SystemTime) -> Self {
+        Self::SystemTime(value)
+    }
+}
+impl From<String> for SystemTimeOrString {
+    fn from(value: String) -> Self {
+        Self::String(value)
+    }
+}

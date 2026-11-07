@@ -366,3 +366,13 @@ pub enum BytesOrLong {
     Bytes(Bytes),
     Long(i64),
 }
+impl From<Bytes> for BytesOrLong {
+    fn from(value: Bytes) -> Self {
+        Self::Bytes(value)
+    }
+}
+impl From<i64> for BytesOrLong {
+    fn from(value: i64) -> Self {
+        Self::Long(value)
+    }
+}

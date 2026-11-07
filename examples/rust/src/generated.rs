@@ -442,3 +442,23 @@ pub enum NullOrEmailVerificationOrPhoneVerificationOrString {
     PhoneVerification(PhoneVerification),
     String(String),
 }
+impl From<()> for NullOrEmailVerificationOrPhoneVerificationOrString {
+    fn from(value: ()) -> Self {
+        Self::Null(value)
+    }
+}
+impl From<EmailVerification> for NullOrEmailVerificationOrPhoneVerificationOrString {
+    fn from(value: EmailVerification) -> Self {
+        Self::EmailVerification(value)
+    }
+}
+impl From<PhoneVerification> for NullOrEmailVerificationOrPhoneVerificationOrString {
+    fn from(value: PhoneVerification) -> Self {
+        Self::PhoneVerification(value)
+    }
+}
+impl From<String> for NullOrEmailVerificationOrPhoneVerificationOrString {
+    fn from(value: String) -> Self {
+        Self::String(value)
+    }
+}

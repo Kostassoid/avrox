@@ -20,3 +20,18 @@ pub enum AOrNullOrString {
     Null(()),
     String(String),
 }
+impl From<A> for AOrNullOrString {
+    fn from(value: A) -> Self {
+        Self::A(value)
+    }
+}
+impl From<()> for AOrNullOrString {
+    fn from(value: ()) -> Self {
+        Self::Null(value)
+    }
+}
+impl From<String> for AOrNullOrString {
+    fn from(value: String) -> Self {
+        Self::String(value)
+    }
+}
