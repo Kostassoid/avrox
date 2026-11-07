@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use crate::schema::{FullName, Schema};
+use crate::schema::{FullName, SchemaNode};
 
 use super::time::Time;
 use super::uuid::Uuid as UuidSupport;
@@ -13,7 +13,7 @@ pub(super) struct UnionInfo {
     /// branch itself or as an `Option`.
     pub(super) name: Option<String>,
     /// Branch schemas in declaration order.
-    pub(super) branches: Vec<Schema>,
+    pub(super) branches: Vec<SchemaNode>,
 }
 
 /// How a union is rendered in Rust.
@@ -31,22 +31,22 @@ pub(super) enum UnionRendering {
 }
 
 /// A structural key identifying a union, used to deduplicate equal unions.
-pub(super) fn key(branches: &[Schema]) -> String {
+pub(super) fn key(branches: &[SchemaNode]) -> String {
     branches
         .iter()
-        .map(Schema::union_branch_key)
+        .map(SchemaNode::union_branch_key)
         .collect::<Vec<_>>()
         .join("|")
 }
 
 /// Determines how a union is rendered in Rust.
-pub(super) fn rendering(branches: &[Schema]) -> UnionRendering {
+pub(super) fn rendering(branches: &[SchemaNode]) -> UnionRendering {
     if branches.len() == 1 {
         return UnionRendering::Transparent;
     }
     if branches.len() == 2 {
-        let null_first = matches!(branches[0], Schema::Null);
-        let null_second = matches!(branches[1], Schema::Null);
+        let null_first = matches!(branches[0], SchemaNode::Null);
+        let null_second = matches!(branches[1], SchemaNode::Null);
         if null_first != null_second {
             return UnionRendering::Nullable {
                 other: usize::from(null_first),
@@ -59,28 +59,30 @@ pub(super) fn rendering(branches: &[Schema]) -> UnionRendering {
 /// The display name of a union branch, used for generated enum and variant
 /// names.
 pub(super) fn display_name(
-    schema: &Schema,
+    node: &SchemaNode,
     type_names: &HashMap<FullName, String>,
     time: Time,
     uuid: UuidSupport,
 ) -> String {
-    if let Some(name) = uuid.display_name(schema) {
+    if let Some(name) = uuid.display_name(node) {
         return name.to_owned();
     }
-    match schema {
-        Schema::Null => "Null".to_owned(),
-        Schema::Boolean => "Boolean".to_owned(),
-        Schema::Int => "Int".to_owned(),
-        Schema::Long => "Long".to_owned(),
-        Schema::Float => "Float".to_owned(),
-        Schema::Double => "Double".to_owned(),
-        Schema::Bytes => "Bytes".to_owned(),
-        Schema::String => "String".to_owned(),
-        Schema::Record(name) | Schema::Enum(name) | Schema::Fixed(name) => type_names[name].clone(),
-        Schema::Array(_) => "Array".to_owned(),
-        Schema::Map(_) => "Map".to_owned(),
-        Schema::Union(_) => "Union".to_owned(),
-        Schema::Logical { kind, base, .. } => match time.display_name(*kind) {
+    match node {
+        SchemaNode::Null => "Null".to_owned(),
+        SchemaNode::Boolean => "Boolean".to_owned(),
+        SchemaNode::Int => "Int".to_owned(),
+        SchemaNode::Long => "Long".to_owned(),
+        SchemaNode::Float => "Float".to_owned(),
+        SchemaNode::Double => "Double".to_owned(),
+        SchemaNode::Bytes => "Bytes".to_owned(),
+        SchemaNode::String => "String".to_owned(),
+        SchemaNode::Record(name) | SchemaNode::Enum(name) | SchemaNode::Fixed(name) => {
+            type_names[name].clone()
+        }
+        SchemaNode::Array(_) => "Array".to_owned(),
+        SchemaNode::Map(_) => "Map".to_owned(),
+        SchemaNode::Union(_) => "Union".to_owned(),
+        SchemaNode::Logical { kind, base, .. } => match time.display_name(*kind) {
             Some(name) => name.to_owned(),
             None => display_name(base, type_names, time, uuid),
         },
@@ -88,7 +90,7 @@ pub(super) fn display_name(
 }
 
 pub(super) fn display_names(
-    branches: &[Schema],
+    branches: &[SchemaNode],
     type_names: &HashMap<FullName, String>,
     time: Time,
     uuid: UuidSupport,

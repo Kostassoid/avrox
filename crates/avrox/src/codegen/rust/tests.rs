@@ -1,24 +1,24 @@
 use super::generate;
 use crate::{GeneratedFile, Layout, RustOptions, RustTime, RustTypes, Settings};
 
-fn generate_with(schema: &str, layout: Layout, options: RustOptions) -> Vec<GeneratedFile> {
-    let document = crate::schema::parse(schema, crate::AvroVersion::V1_12)
+fn generate_with(source: &str, layout: Layout, options: RustOptions) -> Vec<GeneratedFile> {
+    let schema = crate::schema::Schema::parse(source, crate::AvroVersion::V1_12)
         .unwrap_or_else(|error| panic!("{error}"));
     let settings = Settings::default().layout(layout).rust(options);
-    generate(&document, &settings).unwrap_or_else(|error| panic!("{error}"))
+    generate(&schema, &settings).unwrap_or_else(|error| panic!("{error}"))
 }
 
-fn generate_ok(schema: &str) -> Vec<GeneratedFile> {
-    generate_with(schema, Layout::SingleFile, RustOptions::default())
+fn generate_ok(source: &str) -> Vec<GeneratedFile> {
+    generate_with(source, Layout::SingleFile, RustOptions::default())
 }
 
-fn generate_module(schema: &str) -> Vec<GeneratedFile> {
-    generate_with(schema, Layout::Module, RustOptions::default())
+fn generate_module(source: &str) -> Vec<GeneratedFile> {
+    generate_with(source, Layout::Module, RustOptions::default())
 }
 
-fn generate_std(schema: &str) -> Vec<GeneratedFile> {
+fn generate_std(source: &str) -> Vec<GeneratedFile> {
     generate_with(
-        schema,
+        source,
         Layout::SingleFile,
         RustOptions {
             types: RustTypes::Std,
@@ -27,9 +27,9 @@ fn generate_std(schema: &str) -> Vec<GeneratedFile> {
     )
 }
 
-fn generate_with_time(schema: &str, time: RustTime) -> Vec<GeneratedFile> {
+fn generate_with_time(source: &str, time: RustTime) -> Vec<GeneratedFile> {
     generate_with(
-        schema,
+        source,
         Layout::SingleFile,
         RustOptions {
             time,
@@ -38,26 +38,26 @@ fn generate_with_time(schema: &str, time: RustTime) -> Vec<GeneratedFile> {
     )
 }
 
-fn generate_err_time(schema: &str, time: RustTime) -> String {
-    let document = crate::schema::parse(schema, crate::AvroVersion::V1_12)
+fn generate_err_time(source: &str, time: RustTime) -> String {
+    let schema = crate::schema::Schema::parse(source, crate::AvroVersion::V1_12)
         .unwrap_or_else(|error| panic!("{error}"));
     let settings = Settings::default().rust(RustOptions {
         time,
         ..RustOptions::default()
     });
-    generate(&document, &settings)
+    generate(&schema, &settings)
         .expect_err("generation should fail")
         .to_string()
 }
 
-fn contents_of_time(schema: &str, time: RustTime) -> String {
-    contents(&generate_with_time(schema, time)).to_owned()
+fn contents_of_time(source: &str, time: RustTime) -> String {
+    contents(&generate_with_time(source, time)).to_owned()
 }
 
-fn generate_err(schema: &str) -> String {
-    let document = crate::schema::parse(schema, crate::AvroVersion::V1_12)
+fn generate_err(source: &str) -> String {
+    let schema = crate::schema::Schema::parse(source, crate::AvroVersion::V1_12)
         .unwrap_or_else(|error| panic!("{error}"));
-    generate(&document, &Settings::default())
+    generate(&schema, &Settings::default())
         .expect_err("generation should fail")
         .to_string()
 }
@@ -67,29 +67,29 @@ fn contents(files: &[GeneratedFile]) -> &str {
     &files[0].contents
 }
 
-fn contents_of(schema: &str) -> String {
-    contents(&generate_ok(schema)).to_owned()
+fn contents_of(source: &str) -> String {
+    contents(&generate_ok(source)).to_owned()
 }
 
-fn contents_of_std(schema: &str) -> String {
-    contents(&generate_std(schema)).to_owned()
+fn contents_of_std(source: &str) -> String {
+    contents(&generate_std(source)).to_owned()
 }
 
-fn generate_err_std(schema: &str) -> String {
-    let document = crate::schema::parse(schema, crate::AvroVersion::V1_12)
+fn generate_err_std(source: &str) -> String {
+    let schema = crate::schema::Schema::parse(source, crate::AvroVersion::V1_12)
         .unwrap_or_else(|error| panic!("{error}"));
     let settings = Settings::default().rust(RustOptions {
         types: RustTypes::Std,
         ..RustOptions::default()
     });
-    generate(&document, &settings)
+    generate(&schema, &settings)
         .expect_err("generation should fail")
         .to_string()
 }
 
-fn generate_with_derives(schema: &str, derives: &[&str]) -> Vec<GeneratedFile> {
+fn generate_with_derives(source: &str, derives: &[&str]) -> Vec<GeneratedFile> {
     generate_with(
-        schema,
+        source,
         Layout::SingleFile,
         RustOptions {
             derives: derives.iter().map(|derive| (*derive).to_owned()).collect(),
@@ -98,14 +98,14 @@ fn generate_with_derives(schema: &str, derives: &[&str]) -> Vec<GeneratedFile> {
     )
 }
 
-fn generate_err_derives(schema: &str, derives: &[&str]) -> String {
-    let document = crate::schema::parse(schema, crate::AvroVersion::V1_12)
+fn generate_err_derives(source: &str, derives: &[&str]) -> String {
+    let schema = crate::schema::Schema::parse(source, crate::AvroVersion::V1_12)
         .unwrap_or_else(|error| panic!("{error}"));
     let settings = Settings::default().rust(RustOptions {
         derives: derives.iter().map(|derive| (*derive).to_owned()).collect(),
         ..RustOptions::default()
     });
-    generate(&document, &settings)
+    generate(&schema, &settings)
         .expect_err("generation should fail")
         .to_string()
 }

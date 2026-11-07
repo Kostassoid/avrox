@@ -4,7 +4,8 @@
 //! test case containing:
 //!
 //! - `schema.avsc`: the Avro schema to generate code from,
-//! - `settings.json` (optional): `language`, `avro_version`, `layout` and
+//! - `settings.json` (optional): `language`, `avro_version` (the version the
+//!   schema is parsed against), `layout` and
 //!   `rust.types`/`rust.time`/`rust.derives` overrides,
 //! - `expected/`: the expected generated files, or `error.txt`: the expected
 //!   error message.
@@ -62,10 +63,11 @@ fn collect_cases() -> Vec<PathBuf> {
 }
 
 fn run_case(case: &Path, bless: bool) -> Result<(), String> {
-    let schema = fs::read_to_string(case.join("schema.avsc"))
+    let source = fs::read_to_string(case.join("schema.avsc"))
         .map_err(|error| format!("failed to read schema.avsc: {error}"))?;
-    let settings = read_settings(case)?;
-    let result = avrox::generate(&schema, &settings);
+    let (avro_version, settings) = read_settings(case)?;
+    let result = avrox::Schema::parse(&source, avro_version)
+        .and_then(|schema| avrox::generate(&schema, &settings));
 
     let error_path = case.join("error.txt");
     if error_path.exists() {
@@ -160,10 +162,11 @@ fn collect_expected(expected_dir: &Path) -> Result<BTreeMap<String, String>, Str
     Ok(expected)
 }
 
-fn read_settings(case: &Path) -> Result<Settings, String> {
+fn read_settings(case: &Path) -> Result<(AvroVersion, Settings), String> {
+    let mut avro_version = AvroVersion::V1_12;
     let mut settings = Settings::default();
     let Ok(text) = fs::read_to_string(case.join("settings.json")) else {
-        return Ok(settings);
+        return Ok((avro_version, settings));
     };
     let value: serde_json::Value =
         serde_json::from_str(&text).map_err(|error| format!("invalid settings.json: {error}"))?;
@@ -177,7 +180,7 @@ fn read_settings(case: &Path) -> Result<Settings, String> {
         .get("avro_version")
         .and_then(serde_json::Value::as_str)
     {
-        settings.avro_version = match version {
+        avro_version = match version {
             "1.10" => AvroVersion::V1_10,
             "1.11" => AvroVersion::V1_11,
             "1.12" => AvroVersion::V1_12,
@@ -232,7 +235,7 @@ fn read_settings(case: &Path) -> Result<Settings, String> {
             };
         }
     }
-    Ok(settings)
+    Ok((avro_version, settings))
 }
 
 fn write_actual(case: &Path, path: &str, contents: &str) {

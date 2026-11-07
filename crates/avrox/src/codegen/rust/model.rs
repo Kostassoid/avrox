@@ -1,14 +1,14 @@
 //! Schema indexing and recursion analysis.
 //!
 //! This module deliberately contains no rendering logic. It gives the rest of
-//! the generator a stable, indexed view of the document.
+//! the generator a stable, indexed view of the schema.
 
 use std::collections::{HashMap, HashSet};
 
 use proc_macro2::Ident;
 
 use crate::error::{Error, Result};
-use crate::schema::{Document, FullName, NamedType, Schema};
+use crate::schema::{FullName, NamedType, Schema, SchemaNode};
 use crate::{RustOptions, RustTypes};
 
 use super::union::{UnionInfo, UnionRendering};
@@ -60,9 +60,9 @@ pub(super) enum Node {
     Union(usize),
 }
 
-/// An indexed schema document and its Rust-specific analysis.
+/// An indexed schema and its Rust-specific analysis.
 pub(super) struct Model<'a> {
-    pub(super) document: &'a Document,
+    pub(super) schema: &'a Schema,
     pub(super) options: RustOptions,
     pub(super) time: time::Time,
     pub(super) uuid: uuid::Uuid,
@@ -74,12 +74,12 @@ pub(super) struct Model<'a> {
 }
 
 impl<'a> Model<'a> {
-    pub(super) fn new(document: &'a Document, options: RustOptions) -> Result<Self> {
+    pub(super) fn new(schema: &'a Schema, options: RustOptions) -> Result<Self> {
         let derives = derives::parse(&options.derives)?;
         let time = time::Time::new(options.time);
         let uuid = uuid::Uuid::new(options.types);
         let mut model = Self {
-            document,
+            schema,
             options,
             time,
             uuid,
@@ -90,8 +90,8 @@ impl<'a> Model<'a> {
             edges: HashMap::new(),
         };
         model.collect_type_names()?;
-        model.walk(&document.root, None);
-        for named in &document.types {
+        model.walk(&schema.root, None);
+        for named in &schema.types {
             if let NamedType::Record(record) = named {
                 for field in &record.fields {
                     model.walk(&field.schema, Some(Node::Type(record.name.clone())));
@@ -105,17 +105,17 @@ impl<'a> Model<'a> {
     /// each other and with names used by the generated code.
     fn collect_type_names(&mut self) -> Result<()> {
         let mut used: HashSet<String> = HashSet::new();
-        for named in &self.document.types {
+        for named in &self.schema.types {
             let rust_name = naming::to_upper_camel_case(&named.name().name);
             if RESERVED_NAMES.contains(&rust_name.as_str())
                 || (self.options.types == RustTypes::Std && rust_name == "Bytes")
                 || self
                     .time
-                    .reserved_names(self.document)
+                    .reserved_names(self.schema)
                     .contains(&rust_name.as_str())
                 || self
                     .uuid
-                    .reserved_names(self.document)
+                    .reserved_names(self.schema)
                     .contains(&rust_name.as_str())
             {
                 return Err(Error::Unsupported(format!(
@@ -139,15 +139,15 @@ impl<'a> Model<'a> {
 
     /// Registers every union of the schema tree and the nesting graph edges
     /// of directly nested positions.
-    fn walk(&mut self, schema: &Schema, container: Option<Node>) {
-        match schema {
-            Schema::Record(name) | Schema::Enum(name) | Schema::Fixed(name) => {
+    fn walk(&mut self, node: &SchemaNode, container: Option<Node>) {
+        match node {
+            SchemaNode::Record(name) | SchemaNode::Enum(name) | SchemaNode::Fixed(name) => {
                 if let Some(container) = container {
                     self.add_edge(container, Node::Type(name.clone()));
                 }
             }
-            Schema::Array(items) | Schema::Map(items) => self.walk(items, None),
-            Schema::Union(branches) => {
+            SchemaNode::Array(items) | SchemaNode::Map(items) => self.walk(items, None),
+            SchemaNode::Union(branches) => {
                 let id = self.register_union(branches);
                 if let Some(container) = container {
                     self.add_edge(container, Node::Union(id));
@@ -156,15 +156,15 @@ impl<'a> Model<'a> {
                     self.walk(branch, Some(Node::Union(id)));
                 }
             }
-            Schema::Logical { base, .. } => self.walk(base, container),
-            Schema::Null
-            | Schema::Boolean
-            | Schema::Int
-            | Schema::Long
-            | Schema::Float
-            | Schema::Double
-            | Schema::Bytes
-            | Schema::String => {}
+            SchemaNode::Logical { base, .. } => self.walk(base, container),
+            SchemaNode::Null
+            | SchemaNode::Boolean
+            | SchemaNode::Int
+            | SchemaNode::Long
+            | SchemaNode::Float
+            | SchemaNode::Double
+            | SchemaNode::Bytes
+            | SchemaNode::String => {}
         }
     }
 
@@ -174,7 +174,7 @@ impl<'a> Model<'a> {
 
     /// Registers a union, deduplicating structurally equal ones and naming
     /// the ones rendered as generated enums.
-    fn register_union(&mut self, branches: &[Schema]) -> usize {
+    fn register_union(&mut self, branches: &[SchemaNode]) -> usize {
         let key = union::key(branches);
         if let Some(id) = self.union_ids.get(&key) {
             return *id;
@@ -218,7 +218,7 @@ impl<'a> Model<'a> {
         naming::make_ident(&self.type_names[name])
     }
 
-    pub(super) fn union_id(&self, branches: &[Schema]) -> Option<usize> {
+    pub(super) fn union_id(&self, branches: &[SchemaNode]) -> Option<usize> {
         self.union_ids.get(&union::key(branches)).copied()
     }
 

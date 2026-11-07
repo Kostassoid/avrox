@@ -16,6 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `avrox::generate` now takes a parsed `avrox::Schema` instead of a JSON
+  string. Build the schema first — with `"...".parse()` for the default Avro
+  1.12 or with `Schema::parse(source, version)` to pick another specification
+  version — and pass a reference to `generate`.
+- The Avro specification version moved from `Settings` to the schema:
+  `Settings::avro_version` and its builder method were removed, `Schema`
+  records the version it was parsed against, and the generated header reads it
+  from there.
+- `avrox::schema::Document` was renamed to `avrox::schema::Schema` (re-exported
+  as `avrox::Schema`), and the former `avrox::schema::Schema` enum is now
+  `avrox::schema::SchemaNode`. The free `avrox::schema::parse` function was
+  replaced by the `Schema::parse` and `FromStr` constructors.
 - `--rust-time` and `RustOptions::time` now default to `chrono` instead of
   `primitives`, so time-related logical types generate bare `chrono` types with
   field-level `serde` adapters out of the box. Generated code then needs

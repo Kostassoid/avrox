@@ -19,7 +19,7 @@
 //! type decorator and, when necessary, a generated helper.
 
 use crate::error::Result;
-use crate::schema::Document;
+use crate::schema::Schema;
 use crate::{GeneratedFile, Settings};
 
 mod decorators;
@@ -37,8 +37,8 @@ mod uuid;
 #[cfg(test)]
 mod tests;
 
-/// Generates Rust source files for the schema document.
-pub(super) fn generate(document: &Document, settings: &Settings) -> Result<Vec<GeneratedFile>> {
-    let model = model::Model::new(document, settings.rust.clone())?;
+/// Generates Rust source files for the schema.
+pub(super) fn generate(schema: &Schema, settings: &Settings) -> Result<Vec<GeneratedFile>> {
+    let model = model::Model::new(schema, settings.rust.clone())?;
     emit::render(&model, settings)
 }

@@ -1,31 +1,51 @@
 //! An intermediate representation of Avro schemas.
 //!
-//! The JSON text of an `.avsc` file is parsed into a [`Document`], which holds
-//! the [`Schema`] tree of the root type together with every named type
+//! The JSON text of an `.avsc` file is parsed into a [`Schema`], which holds
+//! the [`SchemaNode`] tree of the root type together with every named type
 //! (`record`, `enum` and `fixed`) defined inside it. Anonymous types are
-//! represented inline; references to named types are [`Schema::Record`],
-//! [`Schema::Enum`] and [`Schema::Fixed`] carrying the referenced [`FullName`].
+//! represented inline; references to named types are [`SchemaNode::Record`],
+//! [`SchemaNode::Enum`] and [`SchemaNode::Fixed`] carrying the referenced
+//! [`FullName`].
 
 use std::fmt;
+use std::str::FromStr;
 
 use serde_json::Value;
 
+use crate::AvroVersion;
+use crate::error::{Error, Result};
+
 mod parse;
 
-pub use parse::parse;
-
-/// A parsed Avro schema document: a root schema plus all named types it
-/// defines, in definition order.
+/// A parsed Avro schema: a root schema plus all named types it defines, in
+/// definition order, together with the Avro specification version it is
+/// written against.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Document {
-    /// The root schema of the document.
-    pub root: Schema,
-    /// All named types defined in the document, in definition order
+pub struct Schema {
+    /// The root node of the schema.
+    pub root: SchemaNode,
+    /// All named types defined in the schema, in definition order
     /// (depth-first, left-to-right through the JSON parse tree).
     pub types: Vec<NamedType>,
+    /// Avro specification version the schema is written against.
+    pub version: AvroVersion,
 }
 
-impl Document {
+impl Schema {
+    /// Parses the JSON text of an Avro schema (`.avsc`) against `version`.
+    ///
+    /// Every named type defined in the schema is collected in definition
+    /// order. References are resolved while parsing, so all of them point at
+    /// types defined in the schema.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`Error::Json`] if the input is not valid JSON and an
+    /// [`Error::Schema`] if it violates the Avro specification.
+    pub fn parse(source: &str, version: AvroVersion) -> Result<Self> {
+        parse::parse(source, version)
+    }
+
     /// Looks up a named type by its fullname.
     #[must_use]
     pub fn get(&self, name: &FullName) -> Option<&NamedType> {
@@ -33,10 +53,25 @@ impl Document {
     }
 }
 
-/// A schema type: primitives, named type references, collections, unions and
-/// logical type annotations.
+impl FromStr for Schema {
+    type Err = Error;
+
+    /// Parses the JSON text of an Avro schema (`.avsc`) against Avro 1.12,
+    /// the latest supported version.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`Error::Json`] if the input is not valid JSON and an
+    /// [`Error::Schema`] if it violates the Avro specification.
+    fn from_str(source: &str) -> Result<Self> {
+        Self::parse(source, AvroVersion::V1_12)
+    }
+}
+
+/// A node of the schema tree: primitives, named type references, collections,
+/// unions and logical type annotations.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Schema {
+pub enum SchemaNode {
     /// The `null` type.
     Null,
     /// The `boolean` type.
@@ -53,30 +88,30 @@ pub enum Schema {
     Bytes,
     /// The `string` type.
     String,
-    /// A reference to a `record` defined in the document.
+    /// A reference to a `record` defined in the schema.
     Record(FullName),
-    /// A reference to an `enum` defined in the document.
+    /// A reference to an `enum` defined in the schema.
     Enum(FullName),
-    /// A reference to a `fixed` defined in the document.
+    /// A reference to a `fixed` defined in the schema.
     Fixed(FullName),
     /// An `array` of `items`.
-    Array(Box<Schema>),
+    Array(Box<SchemaNode>),
     /// A `map` with string keys and `values` values.
-    Map(Box<Schema>),
+    Map(Box<SchemaNode>),
     /// A `union` of the given branch schemas, in declaration order.
-    Union(Vec<Schema>),
+    Union(Vec<SchemaNode>),
     /// A logical type annotation applied to `base`.
     Logical {
         /// The schema the logical type annotates.
-        base: Box<Schema>,
+        base: Box<SchemaNode>,
         /// The logical type.
         kind: LogicalType,
     },
 }
 
-impl Schema {
+impl SchemaNode {
     /// The primitive or complex Avro type name used for binary encoding, e.g.
-    /// `int` for `Schema::Int` and `array` for `Schema::Array`.
+    /// `int` for `SchemaNode::Int` and `array` for `SchemaNode::Array`.
     #[must_use]
     pub fn avro_type_name(&self) -> &'static str {
         match self {
@@ -179,7 +214,7 @@ impl fmt::Display for LogicalType {
     }
 }
 
-/// A named type defined in a schema document.
+/// A named type defined in a schema.
 #[derive(Debug, Clone, PartialEq)]
 pub enum NamedType {
     /// A `record` definition.
@@ -233,7 +268,7 @@ pub struct Field {
     /// Documentation for the field, if any.
     pub doc: Option<String>,
     /// Schema of the field.
-    pub schema: Schema,
+    pub schema: SchemaNode,
     /// Default value of the field in JSON encoding, if any.
     pub default: Option<Value>,
     /// How the field affects sort ordering of the record.

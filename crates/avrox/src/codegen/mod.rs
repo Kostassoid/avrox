@@ -2,12 +2,12 @@
 
 mod rust;
 
-use crate::schema::Document;
+use crate::schema::Schema;
 use crate::{GeneratedFile, Language, Result, Settings};
 
-/// Generates code for the document in the configured target language.
-pub(crate) fn generate(document: &Document, settings: &Settings) -> Result<Vec<GeneratedFile>> {
+/// Generates code for the schema in the configured target language.
+pub(crate) fn generate(schema: &Schema, settings: &Settings) -> Result<Vec<GeneratedFile>> {
     match settings.language {
-        Language::Rust => rust::generate(document, settings),
+        Language::Rust => rust::generate(schema, settings),
     }
 }

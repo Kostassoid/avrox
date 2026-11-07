@@ -8,7 +8,7 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use crate::schema::{Document, FullName, LogicalType, NamedType, Schema};
+use crate::schema::{FullName, LogicalType, NamedType, Schema, SchemaNode};
 use crate::{RustOptions, RustTypes};
 
 use super::emit::{FileContext, Import};
@@ -19,7 +19,7 @@ use super::{naming, time, uuid};
 trait TypeDecorator {
     fn decorate(
         &self,
-        schema: &Schema,
+        node: &SchemaNode,
         model: &Model<'_>,
         context: &mut FileContext,
         direct: bool,
@@ -49,13 +49,13 @@ impl Decorators {
 
     pub(super) fn apply(
         &self,
-        schema: &Schema,
+        node: &SchemaNode,
         model: &Model<'_>,
         context: &mut FileContext,
         direct: bool,
     ) -> Option<TokenStream> {
         for decorator in &self.inner {
-            if let Some(tokens) = decorator.decorate(schema, model, context, direct) {
+            if let Some(tokens) = decorator.decorate(node, model, context, direct) {
                 return Some(tokens);
             }
         }
@@ -71,12 +71,12 @@ struct TimeDecorator {
 impl TypeDecorator for TimeDecorator {
     fn decorate(
         &self,
-        schema: &Schema,
+        node: &SchemaNode,
         _model: &Model<'_>,
         context: &mut FileContext,
         direct: bool,
     ) -> Option<TokenStream> {
-        let Schema::Logical { kind, .. } = schema else {
+        let SchemaNode::Logical { kind, .. } = node else {
             return None;
         };
         if direct && let Some(tokens) = self.time.direct_type(*kind) {
@@ -97,15 +97,15 @@ struct UuidDecorator {
 impl TypeDecorator for UuidDecorator {
     fn decorate(
         &self,
-        schema: &Schema,
+        node: &SchemaNode,
         _model: &Model<'_>,
         context: &mut FileContext,
         direct: bool,
     ) -> Option<TokenStream> {
-        if direct && let Some(tokens) = self.uuid.direct_type(schema) {
+        if direct && let Some(tokens) = self.uuid.direct_type(node) {
             return Some(tokens);
         }
-        let wrapper = self.uuid.wrapper_for_position(schema, direct)?;
+        let wrapper = self.uuid.wrapper_for_position(node, direct)?;
         context.reference(wrapper.name);
         let (ident, _) = naming::make_ident(wrapper.name);
         Some(quote!(#ident))
@@ -132,8 +132,8 @@ impl RepresentationDecorator {
     }
 
     /// The `apache-avro` type a `fixed` with a logical type maps to, if any.
-    fn apache_fixed_type(document: &Document, name: &FullName) -> Option<TokenStream> {
-        let NamedType::Fixed(fixed) = document.get(name)? else {
+    fn apache_fixed_type(schema: &Schema, name: &FullName) -> Option<TokenStream> {
+        let NamedType::Fixed(fixed) = schema.get(name)? else {
             return None;
         };
         match fixed.logical {
@@ -148,18 +148,18 @@ impl RepresentationDecorator {
 impl TypeDecorator for RepresentationDecorator {
     fn decorate(
         &self,
-        schema: &Schema,
+        node: &SchemaNode,
         model: &Model<'_>,
         context: &mut FileContext,
         _direct: bool,
     ) -> Option<TokenStream> {
-        match schema {
-            Schema::Bytes => Some(self.bytes(context)),
-            Schema::Logical { kind, .. } if self.setting == RustTypes::ApacheAvro => {
+        match node {
+            SchemaNode::Bytes => Some(self.bytes(context)),
+            SchemaNode::Logical { kind, .. } if self.setting == RustTypes::ApacheAvro => {
                 apache_logical_type(*kind)
             }
-            Schema::Fixed(name) if self.setting == RustTypes::ApacheAvro => {
-                Self::apache_fixed_type(model.document, name)
+            SchemaNode::Fixed(name) if self.setting == RustTypes::ApacheAvro => {
+                Self::apache_fixed_type(model.schema, name)
             }
             _ => None,
         }

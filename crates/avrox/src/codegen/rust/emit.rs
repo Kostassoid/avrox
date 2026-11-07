@@ -6,7 +6,7 @@ use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 
 use crate::error::{Error, Result};
-use crate::schema::{Document, Schema};
+use crate::schema::{Schema, SchemaNode};
 use crate::{AvroVersion, GeneratedFile, Language, Layout, RustTime, RustTypes, Settings};
 
 use super::model::Model;
@@ -14,7 +14,7 @@ use super::render::Renderer;
 use super::{helpers, naming, time, uuid};
 
 /// Builds the header comment describing the generator version and settings.
-fn header(settings: &Settings) -> Vec<String> {
+fn header(version: AvroVersion, settings: &Settings) -> Vec<String> {
     let derives = if settings.rust.derives.is_empty() {
         "none".to_owned()
     } else {
@@ -29,10 +29,7 @@ fn header(settings: &Settings) -> Vec<String> {
         "Settings used for generation:".to_owned(),
         String::new(),
         format!("- language: {}", language_name(settings.language)),
-        format!(
-            "- avro version: {}",
-            avro_version_name(settings.avro_version)
-        ),
+        format!("- avro version: {}", avro_version_name(version)),
         format!("- layout: {}", layout_name(settings.layout)),
         format!("- rust types: {}", rust_types_name(settings.rust.types)),
         format!("- rust time: {}", rust_time_name(settings.rust.time)),
@@ -167,11 +164,11 @@ impl FileContext {
 /// Renders the output files, or nothing if the schema defines no named types
 /// and no unions.
 pub(super) fn render(model: &Model<'_>, settings: &Settings) -> Result<Vec<GeneratedFile>> {
-    if model.document.types.is_empty() && !model.has_named_union() {
+    if model.schema.types.is_empty() && !model.has_named_union() {
         return Ok(Vec::new());
     }
     let renderer = Renderer::new(model);
-    let header = header(settings);
+    let header = header(model.schema.version, settings);
     match settings.layout {
         Layout::SingleFile => render_single_file(model, &renderer, &header),
         Layout::Module => render_module(model, &renderer, &header),
@@ -185,16 +182,16 @@ fn render_single_file(
 ) -> Result<Vec<GeneratedFile>> {
     let mut context = FileContext::local();
     let mut items = Vec::new();
-    if model.options.types == RustTypes::Std && helpers::uses_bytes(model.document) {
+    if model.options.types == RustTypes::Std && helpers::uses_bytes(model.schema) {
         items.push(helpers::bytes_type());
     }
-    for wrapper in model.time.used_wrappers(model.document) {
+    for wrapper in model.time.used_wrappers(model.schema) {
         items.push(time::render(&wrapper));
     }
-    for wrapper in model.uuid.used_wrappers(model.document) {
+    for wrapper in model.uuid.used_wrappers(model.schema) {
         items.push(uuid::render(&wrapper));
     }
-    for named in &model.document.types {
+    for named in &model.schema.types {
         items.push(renderer.render_named(named, &mut context)?);
     }
     for (id, union) in model.unions.iter().enumerate() {
@@ -209,7 +206,7 @@ fn render_single_file(
         items.insert(0, module);
     }
     let imports = imports(&context);
-    assemble(output_path(model.document), header, &imports, &items).map(|file| vec![file])
+    assemble(output_path(model.schema), header, &imports, &items).map(|file| vec![file])
 }
 
 /// Renders one file per named type plus a `mod.rs` declaring them,
@@ -222,7 +219,7 @@ fn render_module(
     let mut files = Vec::new();
     let mut mod_decls = Vec::new();
     let mut re_exports = Vec::new();
-    if model.options.types == RustTypes::Std && helpers::uses_bytes(model.document) {
+    if model.options.types == RustTypes::Std && helpers::uses_bytes(model.schema) {
         files.push(assemble(
             "bytes.rs".to_owned(),
             header,
@@ -232,7 +229,7 @@ fn render_module(
         mod_decls.push(quote! { pub mod bytes; });
         re_exports.push(quote! { pub use bytes::Bytes; });
     }
-    let time_wrappers = model.time.used_wrappers(model.document);
+    let time_wrappers = model.time.used_wrappers(model.schema);
     if !time_wrappers.is_empty() {
         let items: Vec<TokenStream> = time_wrappers.iter().map(time::render).collect();
         files.push(assemble("time.rs".to_owned(), header, &[], &items)?);
@@ -247,7 +244,7 @@ fn render_module(
             re_exports.push(quote! { pub use time::{#(#idents),*}; });
         }
     }
-    let uuid_wrappers = model.uuid.used_wrappers(model.document);
+    let uuid_wrappers = model.uuid.used_wrappers(model.schema);
     if !uuid_wrappers.is_empty() {
         let items: Vec<TokenStream> = uuid_wrappers.iter().map(uuid::render).collect();
         files.push(assemble("uuid.rs".to_owned(), header, &[], &items)?);
@@ -258,7 +255,7 @@ fn render_module(
             .collect();
         re_exports.push(quote! { pub use self::uuid::#(#idents)*; });
     }
-    for named in &model.document.types {
+    for named in &model.schema.types {
         let rust_name = model.type_names[named.name()].clone();
         let stem = naming::to_snake_case(&named.name().name);
         let (stem_ident, _) = naming::make_ident(&stem);
@@ -362,9 +359,9 @@ fn imports(context: &FileContext) -> Vec<TokenStream> {
 }
 
 /// The output file path, derived from the root type name.
-fn output_path(document: &Document) -> String {
-    let stem = match &document.root {
-        Schema::Record(name) | Schema::Enum(name) | Schema::Fixed(name) => {
+fn output_path(schema: &Schema) -> String {
+    let stem = match &schema.root {
+        SchemaNode::Record(name) | SchemaNode::Enum(name) | SchemaNode::Fixed(name) => {
             naming::to_snake_case(&name.name)
         }
         _ => "schema".to_owned(),

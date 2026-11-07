@@ -1,8 +1,9 @@
 //! Code generation from Avro schemas.
 //!
-//! [`generate`] parses an Avro schema in JSON format (`.avsc`) and produces
-//! strongly typed code with the serialization boilerplate for the target
-//! language, in the same vein as `protoc` for protocol buffers.
+//! [`Schema`] holds an Avro schema parsed from JSON format (`.avsc`);
+//! [`generate`] produces strongly typed code with the serialization
+//! boilerplate for the target language, in the same vein as `protoc` for
+//! protocol buffers.
 //!
 //! Generated Rust code integrates with the
 //! [`apache-avro`](https://docs.rs/apache-avro) crate through `serde`
@@ -26,20 +27,24 @@
 //! # Example
 //!
 //! ```
-//! let schema = r#"{
+//! let schema: avrox::Schema = r#"{
 //!     "type": "record",
 //!     "name": "User",
 //!     "fields": [
 //!         {"name": "id", "type": "long"},
 //!         {"name": "name", "type": "string"}
 //!     ]
-//! }"#;
+//! }"#.parse()?;
 //!
-//! let files = avrox::generate(schema, &avrox::Settings::default())?;
+//! let files = avrox::generate(&schema, &avrox::Settings::default())?;
 //! assert_eq!(files.len(), 1);
 //! assert_eq!(files[0].path, "user.rs");
 //! # Ok::<(), avrox::Error>(())
 //! ```
+//!
+//! Parsing defaults to Avro 1.12, the latest supported version. Use
+//! [`Schema::parse`] to pick another one, e.g.
+//! `Schema::parse(source, avrox::AvroVersion::V1_11)`.
 //!
 //! Settings can be assembled incrementally with the builder methods:
 //!
@@ -59,15 +64,13 @@ pub mod error;
 pub mod schema;
 
 pub use error::{Error, Result};
-pub use schema::Document;
+pub use schema::Schema;
 
 /// Settings for code generation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Settings {
     /// Target language of the generated code.
     pub language: Language,
-    /// Avro specification version the schema is written against.
-    pub avro_version: AvroVersion,
     /// How the generated code is split into files.
     pub layout: Layout,
     /// Options for Rust code generation.
@@ -75,12 +78,11 @@ pub struct Settings {
 }
 
 impl Default for Settings {
-    /// Defaults to Rust, the latest supported Avro version, a single output
-    /// file, [`RustTypes::ApacheAvro`] and [`RustTime::Chrono`].
+    /// Defaults to Rust, a single output file, [`RustTypes::ApacheAvro`] and
+    /// [`RustTime::Chrono`].
     fn default() -> Self {
         Self {
             language: Language::Rust,
-            avro_version: AvroVersion::V1_12,
             layout: Layout::SingleFile,
             rust: RustOptions::default(),
         }
@@ -106,13 +108,6 @@ impl Settings {
     #[must_use]
     pub fn language(mut self, language: Language) -> Self {
         self.language = language;
-        self
-    }
-
-    /// Sets the Avro specification version the schema is written against.
-    #[must_use]
-    pub fn avro_version(mut self, avro_version: AvroVersion) -> Self {
-        self.avro_version = avro_version;
         self
     }
 
@@ -337,14 +332,16 @@ pub struct GeneratedFile {
     pub contents: String,
 }
 
-/// Generates code from an Avro schema in JSON format (`.avsc`).
+/// Generates code from a parsed Avro [`Schema`].
+///
+/// Parse the JSON text of an `.avsc` file into a [`Schema`] first, either with
+/// [`Schema::parse`] to choose the Avro specification version or through
+/// [`str::parse`] for the latest supported version.
 ///
 /// # Errors
 ///
-/// Returns an error if the schema is not valid JSON, if it violates the Avro
-/// specification, or if it uses constructs the generator does not support for
-/// the configured target language.
-pub fn generate(schema: &str, settings: &Settings) -> Result<Vec<GeneratedFile>> {
-    let document = schema::parse(schema, settings.avro_version)?;
-    codegen::generate(&document, settings)
+/// Returns an error if the schema uses constructs the generator does not
+/// support for the configured target language.
+pub fn generate(schema: &Schema, settings: &Settings) -> Result<Vec<GeneratedFile>> {
+    codegen::generate(schema, settings)
 }

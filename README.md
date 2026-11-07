@@ -212,11 +212,21 @@ Add the `avrox` crate from crates.io:
 cargo add avrox
 ```
 
-Then call `generate` with a schema in JSON format and a `Settings` value:
+Then parse the schema and call `generate` with a `Settings` value:
 
 ```rust
-let schema = std::fs::read_to_string("path/to/schema.avsc")?;
+let text = std::fs::read_to_string("path/to/schema.avsc")?;
+let schema: avrox::Schema = text.parse()?;
 let files = avrox::generate(&schema, &avrox::Settings::default())?;
+```
+
+Parsing defaults to Avro 1.12, the latest supported version. Use
+`Schema::parse` to parse against another specification version:
+
+```rust
+use avrox::{AvroVersion, Schema};
+
+let schema = Schema::parse(&text, AvroVersion::V1_11)?;
 ```
 
 The result is a list of generated files, each pairing a relative path with its
@@ -230,17 +240,15 @@ for file in &files {
 
 ### Building settings
 
-`Settings` controls the target language, Avro version, output layout and
-language-specific options. `Settings::new()` starts from the defaults, and the
-builder methods return the modified value, so settings can be built in a single
-expression:
+`Settings` controls the target language, output layout and language-specific
+options. `Settings::new()` starts from the defaults, and the builder methods
+return the modified value, so settings can be built in a single expression:
 
 ```rust
-use avrox::{AvroVersion, Layout, RustTime, RustTypes, Settings};
+use avrox::{Layout, RustTime, RustTypes, Settings};
 
 let settings = Settings::new()
     .layout(Layout::Module)
-    .avro_version(AvroVersion::V1_11)
     .rust_types(RustTypes::Std)
     .rust_time(RustTime::Chrono)
     .rust_derives(["Hash", "derive_more::Display"]);
@@ -279,9 +287,10 @@ creating subdirectories as needed:
 ```rust
 use std::{fs, path::Path};
 
-fn write_module(schema: &str, output: &Path) -> Result<(), Box<dyn std::error::Error>> {
+fn write_module(text: &str, output: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let schema: avrox::Schema = text.parse()?;
     let settings = avrox::Settings::new().layout(avrox::Layout::Module);
-    for file in avrox::generate(schema, &settings)? {
+    for file in avrox::generate(&schema, &settings)? {
         let path = output.join(&file.path);
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;

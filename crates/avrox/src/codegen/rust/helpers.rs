@@ -3,7 +3,7 @@
 use proc_macro2::{Ident, Literal, TokenStream};
 use quote::quote;
 
-use crate::schema::{Document, NamedType, Schema};
+use crate::schema::{NamedType, Schema, SchemaNode};
 
 /// The `Bytes` newtype generated in standard-types mode for `bytes` schemas.
 pub(super) fn bytes_type() -> TokenStream {
@@ -70,20 +70,20 @@ pub(super) fn bytes_type() -> TokenStream {
     }
 }
 
-/// Whether any schema in the document contains a `bytes` type.
-pub(super) fn uses_bytes(document: &Document) -> bool {
-    fn scan(schema: &Schema) -> bool {
-        match schema {
-            Schema::Bytes => true,
-            Schema::Array(items) | Schema::Map(items) | Schema::Logical { base: items, .. } => {
-                scan(items)
-            }
-            Schema::Union(branches) => branches.iter().any(scan),
+/// Whether the schema contains a `bytes` type.
+pub(super) fn uses_bytes(schema: &Schema) -> bool {
+    fn scan(node: &SchemaNode) -> bool {
+        match node {
+            SchemaNode::Bytes => true,
+            SchemaNode::Array(items)
+            | SchemaNode::Map(items)
+            | SchemaNode::Logical { base: items, .. } => scan(items),
+            SchemaNode::Union(branches) => branches.iter().any(scan),
             _ => false,
         }
     }
-    scan(&document.root)
-        || document.types.iter().any(|named| match named {
+    scan(&schema.root)
+        || schema.types.iter().any(|named| match named {
             NamedType::Record(record) => record.fields.iter().any(|field| scan(&field.schema)),
             NamedType::Enum(_) | NamedType::Fixed(_) => false,
         })

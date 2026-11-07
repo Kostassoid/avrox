@@ -12,19 +12,19 @@ use proc_macro2::TokenStream;
 use quote::quote;
 
 use crate::RustTypes;
-use crate::schema::{Document, LogicalType, NamedType, Schema};
+use crate::schema::{LogicalType, NamedType, Schema, SchemaNode};
 
 use super::{docs, naming};
 
 /// Whether a schema is a `uuid` logical type over `string`.
-fn is_string_uuid(schema: &Schema) -> bool {
+fn is_string_uuid(node: &SchemaNode) -> bool {
     matches!(
-        schema,
-        Schema::Logical {
+        node,
+        SchemaNode::Logical {
             kind: LogicalType::Uuid,
             base,
             ..
-        } if matches!(base.as_ref(), Schema::String)
+        } if matches!(base.as_ref(), SchemaNode::String)
     )
 }
 
@@ -45,29 +45,32 @@ impl Uuid {
 
     /// The bare type used in positions that can carry a field-level `serde`
     /// attribute.
-    pub(super) fn direct_type(self, schema: &Schema) -> Option<TokenStream> {
-        (self.enabled() && is_string_uuid(schema)).then(|| quote!(apache_avro::Uuid))
+    pub(super) fn direct_type(self, node: &SchemaNode) -> Option<TokenStream> {
+        (self.enabled() && is_string_uuid(node)).then(|| quote!(apache_avro::Uuid))
     }
 
     /// The wrapper used in positions that cannot carry a field-level
     /// attribute, or `None` when the underlying type is used.
-    pub(super) fn wrapper_for_position(self, schema: &Schema, direct: bool) -> Option<UuidWrapper> {
-        (self.enabled() && !direct && is_string_uuid(schema))
-            .then_some(UuidWrapper { name: "Uuid" })
+    pub(super) fn wrapper_for_position(
+        self,
+        node: &SchemaNode,
+        direct: bool,
+    ) -> Option<UuidWrapper> {
+        (self.enabled() && !direct && is_string_uuid(node)).then_some(UuidWrapper { name: "Uuid" })
     }
 
     /// The display name of a `uuid` over `string`, used for generated union
     /// variants.
-    pub(super) fn display_name(self, schema: &Schema) -> Option<&'static str> {
-        (self.enabled() && is_string_uuid(schema)).then_some("Uuid")
+    pub(super) fn display_name(self, node: &SchemaNode) -> Option<&'static str> {
+        (self.enabled() && is_string_uuid(node)).then_some("Uuid")
     }
 
     /// The field-level `serde(with = "...")` adapter of a schema.
-    pub(super) fn serde_with(self, schema: &Schema) -> Option<SerdeWith> {
+    pub(super) fn serde_with(self, node: &SchemaNode) -> Option<SerdeWith> {
         if !self.enabled() {
             return None;
         }
-        let (inner, optional) = direct_logical(schema)?;
+        let (inner, optional) = direct_logical(node)?;
         if !is_string_uuid(inner) {
             return None;
         }
@@ -84,23 +87,23 @@ impl Uuid {
         })
     }
 
-    /// The `Uuid` newtypes the document needs, in a deterministic order.
-    pub(super) fn used_wrappers(self, document: &Document) -> Vec<UuidWrapper> {
-        fn scan(schema: &Schema, direct: bool, found: &mut bool) {
-            if is_string_uuid(schema) {
+    /// The `Uuid` newtypes the schema needs, in a deterministic order.
+    pub(super) fn used_wrappers(self, schema: &Schema) -> Vec<UuidWrapper> {
+        fn scan(node: &SchemaNode, direct: bool, found: &mut bool) {
+            if is_string_uuid(node) {
                 if !direct {
                     *found = true;
                 }
                 return;
             }
-            match schema {
-                Schema::Array(items) | Schema::Map(items) => scan(items, false, found),
-                Schema::Union(branches) => {
+            match node {
+                SchemaNode::Array(items) | SchemaNode::Map(items) => scan(items, false, found),
+                SchemaNode::Union(branches) => {
                     for branch in branches {
                         scan(branch, direct, found);
                     }
                 }
-                Schema::Logical { base, .. } => scan(base, direct, found),
+                SchemaNode::Logical { base, .. } => scan(base, direct, found),
                 _ => {}
             }
         }
@@ -108,8 +111,8 @@ impl Uuid {
             return Vec::new();
         }
         let mut found = false;
-        scan(&document.root, true, &mut found);
-        for named in &document.types {
+        scan(&schema.root, true, &mut found);
+        for named in &schema.types {
             if let NamedType::Record(record) = named {
                 for field in &record.fields {
                     scan(&field.schema, true, &mut found);
@@ -124,8 +127,8 @@ impl Uuid {
     }
 
     /// Schema type names that collide with the generated `Uuid` wrapper.
-    pub(super) fn reserved_names(self, document: &Document) -> Vec<&'static str> {
-        self.used_wrappers(document)
+    pub(super) fn reserved_names(self, schema: &Schema) -> Vec<&'static str> {
+        self.used_wrappers(schema)
             .into_iter()
             .map(|wrapper| wrapper.name)
             .collect()
@@ -174,13 +177,13 @@ pub(super) struct SerdeWith {
 
 /// The logical type a schema carries at a field-like position, and whether it
 /// is wrapped in a nullable union.
-fn direct_logical(schema: &Schema) -> Option<(&Schema, bool)> {
-    match schema {
-        Schema::Logical { .. } => Some((schema, false)),
-        Schema::Union(branches) => match branches.as_slice() {
+fn direct_logical(node: &SchemaNode) -> Option<(&SchemaNode, bool)> {
+    match node {
+        SchemaNode::Logical { .. } => Some((node, false)),
+        SchemaNode::Union(branches) => match branches.as_slice() {
             [first, second] => match (
-                matches!(first, Schema::Null),
-                matches!(second, Schema::Null),
+                matches!(first, SchemaNode::Null),
+                matches!(second, SchemaNode::Null),
             ) {
                 (true, false) => nullable_logical(second),
                 (false, true) => nullable_logical(first),
@@ -192,9 +195,9 @@ fn direct_logical(schema: &Schema) -> Option<(&Schema, bool)> {
     }
 }
 
-fn nullable_logical(schema: &Schema) -> Option<(&Schema, bool)> {
-    if matches!(schema, Schema::Logical { .. }) {
-        Some((schema, true))
+fn nullable_logical(node: &SchemaNode) -> Option<(&SchemaNode, bool)> {
+    if matches!(node, SchemaNode::Logical { .. }) {
+        Some((node, true))
     } else {
         None
     }

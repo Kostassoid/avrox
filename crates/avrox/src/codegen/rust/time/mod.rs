@@ -10,7 +10,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 
 use crate::RustTime;
-use crate::schema::{Document, LogicalType, NamedType, Schema};
+use crate::schema::{LogicalType, NamedType, Schema, SchemaNode};
 
 mod chrono;
 mod render;
@@ -70,11 +70,11 @@ impl Time {
 
     /// The field-level `serde(with = "...")` adapter of a schema, if the
     /// representation uses bare domain types.
-    pub(super) fn serde_with(self, schema: &Schema) -> Option<SerdeWith> {
+    pub(super) fn serde_with(self, node: &SchemaNode) -> Option<SerdeWith> {
         match self.setting {
             RustTime::Primitives => None,
-            RustTime::StdTime => std_time::serde_with(schema),
-            RustTime::Chrono => chrono::serde_with(schema),
+            RustTime::StdTime => std_time::serde_with(node),
+            RustTime::Chrono => chrono::serde_with(node),
         }
     }
 
@@ -96,18 +96,20 @@ impl Time {
         }
     }
 
-    /// The time wrapper newtypes the document needs under the current setting,
+    /// The time wrapper newtypes the schema needs under the current setting,
     /// in a deterministic order and without duplicates.
-    pub(super) fn used_wrappers(self, document: &Document) -> Vec<TimeWrapper> {
-        fn scan(schema: &Schema, direct: bool, time: Time, kinds: &mut Vec<LogicalType>) {
-            match schema {
-                Schema::Logical { kind, .. } => {
+    pub(super) fn used_wrappers(self, schema: &Schema) -> Vec<TimeWrapper> {
+        fn scan(node: &SchemaNode, direct: bool, time: Time, kinds: &mut Vec<LogicalType>) {
+            match node {
+                SchemaNode::Logical { kind, .. } => {
                     if time.wrapper_for_position(*kind, direct).is_some() {
                         kinds.push(*kind);
                     }
                 }
-                Schema::Array(items) | Schema::Map(items) => scan(items, false, time, kinds),
-                Schema::Union(branches) => {
+                SchemaNode::Array(items) | SchemaNode::Map(items) => {
+                    scan(items, false, time, kinds);
+                }
+                SchemaNode::Union(branches) => {
                     for branch in branches {
                         scan(branch, direct, time, kinds);
                     }
@@ -119,8 +121,8 @@ impl Time {
             return Vec::new();
         }
         let mut kinds = Vec::new();
-        scan(&document.root, true, self, &mut kinds);
-        for named in &document.types {
+        scan(&schema.root, true, self, &mut kinds);
+        for named in &schema.types {
             if let NamedType::Record(record) = named {
                 for field in &record.fields {
                     scan(&field.schema, true, self, &mut kinds);
@@ -137,13 +139,13 @@ impl Time {
     }
 
     /// Schema type names that collide with generated time wrappers.
-    pub(super) fn reserved_names(self, document: &Document) -> Vec<&'static str> {
+    pub(super) fn reserved_names(self, schema: &Schema) -> Vec<&'static str> {
         if self.setting == RustTime::Primitives {
             return Vec::new();
         }
         let mut names = vec!["Time"];
         names.extend(
-            self.used_wrappers(document)
+            self.used_wrappers(schema)
                 .iter()
                 .map(|wrapper| wrapper.name),
         );
@@ -224,14 +226,14 @@ pub(super) struct SerdeWith {
 
 /// The logical type a schema carries at a field-like position, and whether it
 /// is wrapped in a nullable union.
-pub(super) fn direct_logical(schema: &Schema) -> Option<(LogicalType, bool)> {
-    match schema {
-        Schema::Logical { kind, .. } => Some((*kind, false)),
-        Schema::Union(branches) => match branches.as_slice() {
+pub(super) fn direct_logical(node: &SchemaNode) -> Option<(LogicalType, bool)> {
+    match node {
+        SchemaNode::Logical { kind, .. } => Some((*kind, false)),
+        SchemaNode::Union(branches) => match branches.as_slice() {
             [branch] => direct_logical(branch),
             [first, second] => match (
-                matches!(first, Schema::Null),
-                matches!(second, Schema::Null),
+                matches!(first, SchemaNode::Null),
+                matches!(second, SchemaNode::Null),
             ) {
                 (true, false) => nullable_logical(second),
                 (false, true) => nullable_logical(first),
@@ -243,8 +245,8 @@ pub(super) fn direct_logical(schema: &Schema) -> Option<(LogicalType, bool)> {
     }
 }
 
-fn nullable_logical(schema: &Schema) -> Option<(LogicalType, bool)> {
-    let Schema::Logical { kind, .. } = schema else {
+fn nullable_logical(node: &SchemaNode) -> Option<(LogicalType, bool)> {
+    let SchemaNode::Logical { kind, .. } = node else {
         return None;
     };
     Some((*kind, true))

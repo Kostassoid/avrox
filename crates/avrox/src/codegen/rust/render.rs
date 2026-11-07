@@ -7,7 +7,7 @@ use quote::quote;
 
 use crate::RustTypes;
 use crate::error::{Error, Result};
-use crate::schema::{Enum, Field, Fixed, FullName, LogicalType, NamedType, Record, Schema};
+use crate::schema::{Enum, Field, Fixed, FullName, LogicalType, NamedType, Record, SchemaNode};
 
 use super::decorators::Decorators;
 use super::emit::{FileContext, Import};
@@ -17,13 +17,13 @@ use super::{derives, docs, helpers, naming, union};
 
 /// Renders the indexed model. Option-specific leaf mappings are delegated to
 /// decorators so this module only handles Rust's structural type rules.
-pub(super) struct Renderer<'model, 'document> {
-    model: &'model Model<'document>,
+pub(super) struct Renderer<'model, 'schema> {
+    model: &'model Model<'schema>,
     decorators: Decorators,
 }
 
-impl<'model, 'document> Renderer<'model, 'document> {
-    pub(super) fn new(model: &'model Model<'document>) -> Self {
+impl<'model, 'schema> Renderer<'model, 'schema> {
+    pub(super) fn new(model: &'model Model<'schema>) -> Self {
         Self {
             model,
             decorators: Decorators::new(&model.options),
@@ -96,15 +96,15 @@ impl<'model, 'document> Renderer<'model, 'document> {
 
     /// The `serde(with = "...")` attribute a field needs for a logical type
     /// that the current settings render as a bare domain type.
-    fn serde_with(&self, schema: &Schema, context: &mut FileContext) -> TokenStream {
-        if let Some(with) = self.model.time.serde_with(schema) {
+    fn serde_with(&self, node: &SchemaNode, context: &mut FileContext) -> TokenStream {
+        if let Some(with) = self.model.time.serde_with(node) {
             if let Some(helper) = with.helper {
                 context.needs_time_helper(helper);
             }
             let path = with.path;
             return quote! { #[serde(with = #path)] };
         }
-        let Some(with) = self.model.uuid.serde_with(schema) else {
+        let Some(with) = self.model.uuid.serde_with(node) else {
             return quote! {};
         };
         if let Some(helper) = with.helper {
@@ -244,12 +244,12 @@ impl<'model, 'document> Renderer<'model, 'document> {
     ///
     /// Type aliases are transparent, so branches that alias the same type must
     /// share a key even though they are written differently.
-    fn lift_key(&self, branch: &Schema, source: &TokenStream) -> String {
+    fn lift_key(&self, branch: &SchemaNode, source: &TokenStream) -> String {
         // In `avro` mode a plain `fixed` is an alias of `ByteArray<N>`; only
         // the logical types mapped to `apache-avro` types escape the alias.
-        if let Schema::Fixed(name) = branch
+        if let SchemaNode::Fixed(name) = branch
             && self.model.options.types == RustTypes::ApacheAvro
-            && let Some(NamedType::Fixed(fixed)) = self.model.document.get(name)
+            && let Some(NamedType::Fixed(fixed)) = self.model.schema.get(name)
             && !matches!(
                 fixed.logical,
                 Some(LogicalType::Uuid | LogicalType::Decimal { .. } | LogicalType::Duration)
@@ -266,37 +266,37 @@ impl<'model, 'document> Renderer<'model, 'document> {
     /// field-level `serde` attribute.
     fn render_type(
         &self,
-        schema: &Schema,
+        node: &SchemaNode,
         container: Option<Node>,
         direct: bool,
         context: &mut FileContext,
     ) -> Result<TokenStream> {
-        if let Some(tokens) = self.decorators.apply(schema, self.model, context, direct) {
+        if let Some(tokens) = self.decorators.apply(node, self.model, context, direct) {
             return Ok(tokens);
         }
-        match schema {
-            Schema::Null => Ok(quote!(())),
-            Schema::Boolean => Ok(quote!(bool)),
-            Schema::Int => Ok(quote!(i32)),
-            Schema::Long => Ok(quote!(i64)),
-            Schema::Float => Ok(quote!(f32)),
-            Schema::Double => Ok(quote!(f64)),
-            Schema::String => Ok(quote!(String)),
-            Schema::Record(name) | Schema::Enum(name) | Schema::Fixed(name) => {
+        match node {
+            SchemaNode::Null => Ok(quote!(())),
+            SchemaNode::Boolean => Ok(quote!(bool)),
+            SchemaNode::Int => Ok(quote!(i32)),
+            SchemaNode::Long => Ok(quote!(i64)),
+            SchemaNode::Float => Ok(quote!(f32)),
+            SchemaNode::Double => Ok(quote!(f64)),
+            SchemaNode::String => Ok(quote!(String)),
+            SchemaNode::Record(name) | SchemaNode::Enum(name) | SchemaNode::Fixed(name) => {
                 Ok(self.render_named_ref(name, container.as_ref(), context))
             }
-            Schema::Array(items) => {
+            SchemaNode::Array(items) => {
                 let items = self.render_type(items, None, false, context)?;
                 Ok(quote!(Vec<#items>))
             }
-            Schema::Map(values) => {
+            SchemaNode::Map(values) => {
                 context.needs(Import::HashMap);
                 let values = self.render_type(values, None, false, context)?;
                 Ok(quote!(HashMap<String, #values>))
             }
-            Schema::Union(branches) => self.render_union(branches, container, direct, context),
-            Schema::Logical { base, .. } => self.render_type(base, container, direct, context),
-            Schema::Bytes => Err(Error::Internal(
+            SchemaNode::Union(branches) => self.render_union(branches, container, direct, context),
+            SchemaNode::Logical { base, .. } => self.render_type(base, container, direct, context),
+            SchemaNode::Bytes => Err(Error::Internal(
                 "bytes schema was not handled by a representation decorator".to_owned(),
             )),
         }
@@ -323,7 +323,7 @@ impl<'model, 'document> Renderer<'model, 'document> {
 
     fn render_union(
         &self,
-        branches: &[Schema],
+        branches: &[SchemaNode],
         container: Option<Node>,
         direct: bool,
         context: &mut FileContext,

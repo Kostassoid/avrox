@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use crate::schema::{LogicalType, Schema};
+use crate::schema::{LogicalType, SchemaNode};
 
 use super::{Helper, SerdeWith, TimeWrapper, Wire, build_wrapper, direct_logical};
 
@@ -39,8 +39,8 @@ pub(super) fn type_name(kind: LogicalType) -> Option<&'static str> {
 
 /// The field-level `serde(with = "...")` adapter of a schema under
 /// `RustTime::StdTime`, when it is a logical type or a nullable logical type.
-pub(super) fn serde_with(schema: &Schema) -> Option<SerdeWith> {
-    let (kind, optional) = direct_logical(schema)?;
+pub(super) fn serde_with(node: &SchemaNode) -> Option<SerdeWith> {
+    let (kind, optional) = direct_logical(node)?;
     let (path, helper) = match (kind, optional) {
         (LogicalType::TimeMillis, false) => ("__avrox_time::time_millis", Helper::TimeMillis),
         (LogicalType::TimeMillis, true) => {

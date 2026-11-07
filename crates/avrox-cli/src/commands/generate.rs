@@ -125,7 +125,7 @@ impl From<VersionArg> for AvroVersion {
 
 /// Runs the `generate` subcommand.
 pub(crate) fn run(args: &Generate) -> Result<()> {
-    let schema = fs::read_to_string(&args.input)
+    let source = fs::read_to_string(&args.input)
         .with_context(|| format!("failed to read `{}`", args.input.display()))?;
     let (layout, output) = match (&args.output_file, &args.output_dir) {
         (Some(file), None) => (Layout::SingleFile, Output::File(file.clone())),
@@ -135,7 +135,6 @@ pub(crate) fn run(args: &Generate) -> Result<()> {
     };
     let settings = Settings::default()
         .language(args.language.clone().into())
-        .avro_version(args.avro_version.clone().into())
         .layout(layout)
         .rust(
             RustOptions::default()
@@ -143,7 +142,8 @@ pub(crate) fn run(args: &Generate) -> Result<()> {
                 .time(args.rust_time.clone().into())
                 .derives(args.rust_derives.clone()),
         );
-    let files = avrox::generate(&schema, &settings)
+    let files = avrox::Schema::parse(&source, args.avro_version.clone().into())
+        .and_then(|schema| avrox::generate(&schema, &settings))
         .with_context(|| format!("failed to generate code from `{}`", args.input.display()))?;
     write_output(args, &output, &files)
 }

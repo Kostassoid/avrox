@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use serde_json::{Map, Value};
 
 use super::{
-    Document, Enum, Field, Fixed, FullName, LogicalType, NamedType, Order, Record, Schema,
+    Enum, Field, Fixed, FullName, LogicalType, NamedType, Order, Record, Schema, SchemaNode,
 };
 use crate::AvroVersion;
 use crate::error::{Error, Result, schema_error};
@@ -26,17 +26,12 @@ enum NamedKind {
     Fixed,
 }
 
-/// Parses the JSON text of an Avro schema (`.avsc`) into a [`Document`].
+/// Parses the JSON text of an Avro schema (`.avsc`) into a [`Schema`].
 ///
 /// Every named type defined in the schema is collected in definition order.
 /// References are resolved while parsing, so all of them point at types
-/// defined in the document.
-///
-/// # Errors
-///
-/// Returns an [`Error::Json`] if the input is not valid JSON and an
-/// [`Error::Schema`] if it violates the Avro specification.
-pub fn parse(source: &str, version: AvroVersion) -> Result<Document> {
+/// defined in the schema.
+pub(super) fn parse(source: &str, version: AvroVersion) -> Result<Schema> {
     let value: Value = serde_json::from_str(source)?;
     if let Some(object) = value.as_object()
         && object.contains_key("protocol")
@@ -53,9 +48,10 @@ pub fn parse(source: &str, version: AvroVersion) -> Result<Document> {
         index: HashMap::new(),
     };
     let root = parser.parse_schema(&value, None, "$")?;
-    Ok(Document {
+    Ok(Schema {
         root,
         types: parser.types,
+        version,
     })
 }
 
@@ -72,7 +68,7 @@ impl Parser {
         value: &Value,
         enclosing: Option<&str>,
         path: &str,
-    ) -> Result<Schema> {
+    ) -> Result<SchemaNode> {
         match value {
             Value::String(name) => self.parse_named_or_primitive(name, enclosing, path),
             Value::Array(branches) => self.parse_union(branches, enclosing, path),
@@ -91,7 +87,7 @@ impl Parser {
         name: &str,
         enclosing: Option<&str>,
         path: &str,
-    ) -> Result<Schema> {
+    ) -> Result<SchemaNode> {
         if let Some(primitive) = primitive_schema(name) {
             return Ok(primitive);
         }
@@ -109,7 +105,7 @@ impl Parser {
         value: &Value,
         enclosing: Option<&str>,
         path: &str,
-    ) -> Result<Schema> {
+    ) -> Result<SchemaNode> {
         let Some(object) = value.as_object() else {
             return schema_error(path, "expected a type object");
         };
@@ -129,7 +125,7 @@ impl Parser {
                 };
                 match object.get("logicalType").and_then(Value::as_str) {
                     Some(name) => match logical_type(name, &base, object, self.version) {
-                        Some(kind) => Ok(Schema::Logical {
+                        Some(kind) => Ok(SchemaNode::Logical {
                             base: Box::new(base),
                             kind,
                         }),
@@ -146,10 +142,10 @@ impl Parser {
         object: &Map<String, Value>,
         enclosing: Option<&str>,
         path: &str,
-    ) -> Result<Schema> {
+    ) -> Result<SchemaNode> {
         let items = required_attribute(object, "items", path)?;
         let items = self.parse_schema(items, enclosing, &format!("{path}.items"))?;
-        Ok(Schema::Array(Box::new(items)))
+        Ok(SchemaNode::Array(Box::new(items)))
     }
 
     fn parse_map(
@@ -157,10 +153,10 @@ impl Parser {
         object: &Map<String, Value>,
         enclosing: Option<&str>,
         path: &str,
-    ) -> Result<Schema> {
+    ) -> Result<SchemaNode> {
         let values = required_attribute(object, "values", path)?;
         let values = self.parse_schema(values, enclosing, &format!("{path}.values"))?;
-        Ok(Schema::Map(Box::new(values)))
+        Ok(SchemaNode::Map(Box::new(values)))
     }
 
     fn parse_record(
@@ -168,7 +164,7 @@ impl Parser {
         object: &Map<String, Value>,
         enclosing: Option<&str>,
         path: &str,
-    ) -> Result<Schema> {
+    ) -> Result<SchemaNode> {
         let (namespace, name) = parse_name(object, enclosing, path)?;
         let fullname = FullName::new(namespace.as_deref(), &name);
         self.define(&fullname, NamedKind::Record, path)?;
@@ -186,7 +182,7 @@ impl Parser {
             return Err(Error::Internal("record slot was overwritten".to_owned()));
         };
         record.fields = fields;
-        Ok(Schema::Record(fullname))
+        Ok(SchemaNode::Record(fullname))
     }
 
     fn parse_fields(
@@ -225,15 +221,15 @@ impl Parser {
         let name = required_string(object, "name", path)?;
         validate_name(&name, &format!("{path}.name"))?;
         let type_attr = required_attribute(object, "type", path)?;
-        let schema = self.parse_schema(type_attr, namespace, &format!("{path}.type"))?;
+        let node = self.parse_schema(type_attr, namespace, &format!("{path}.type"))?;
         let doc = optional_string(object, "doc", path)?;
-        let default = self.parse_default(object, &schema, path)?;
+        let default = self.parse_default(object, &node, path)?;
         let order = parse_order(object, path)?;
         let aliases = string_array(object, "aliases", path)?;
         Ok(Field {
             name,
             doc,
-            schema,
+            schema: node,
             default,
             order,
             aliases,
@@ -243,20 +239,20 @@ impl Parser {
     fn parse_default(
         &self,
         object: &Map<String, Value>,
-        schema: &Schema,
+        node: &SchemaNode,
         path: &str,
     ) -> Result<Option<Value>> {
         match object.get("default") {
             None => Ok(None),
             Some(value) => {
-                if self.default_matches(schema, value) {
+                if self.default_matches(node, value) {
                     Ok(Some(value.clone()))
                 } else {
                     schema_error(
                         &format!("{path}.default"),
                         format!(
                             "default value does not match type `{}`",
-                            schema.avro_type_name()
+                            node.avro_type_name()
                         ),
                     )
                 }
@@ -269,7 +265,7 @@ impl Parser {
         object: &Map<String, Value>,
         enclosing: Option<&str>,
         path: &str,
-    ) -> Result<Schema> {
+    ) -> Result<SchemaNode> {
         let (namespace, name) = parse_name(object, enclosing, path)?;
         let fullname = FullName::new(namespace.as_deref(), &name);
         self.define(&fullname, NamedKind::Enum, path)?;
@@ -301,7 +297,7 @@ impl Parser {
             symbols,
             default,
         }));
-        Ok(Schema::Enum(fullname))
+        Ok(SchemaNode::Enum(fullname))
     }
 
     fn parse_fixed(
@@ -309,7 +305,7 @@ impl Parser {
         object: &Map<String, Value>,
         enclosing: Option<&str>,
         path: &str,
-    ) -> Result<Schema> {
+    ) -> Result<SchemaNode> {
         let (namespace, name) = parse_name(object, enclosing, path)?;
         let fullname = FullName::new(namespace.as_deref(), &name);
         self.define(&fullname, NamedKind::Fixed, path)?;
@@ -327,7 +323,7 @@ impl Parser {
             size,
             logical,
         }));
-        Ok(Schema::Fixed(fullname))
+        Ok(SchemaNode::Fixed(fullname))
     }
 
     fn parse_union(
@@ -335,14 +331,14 @@ impl Parser {
         branches: &[Value],
         enclosing: Option<&str>,
         path: &str,
-    ) -> Result<Schema> {
+    ) -> Result<SchemaNode> {
         if branches.is_empty() {
             return schema_error(path, "union must have at least one branch");
         }
         let mut schemas = Vec::with_capacity(branches.len());
         for (index, value) in branches.iter().enumerate() {
             let branch = self.parse_schema(value, enclosing, &format!("{path}[{index}]"))?;
-            if matches!(branch, Schema::Union(_)) {
+            if matches!(branch, SchemaNode::Union(_)) {
                 return schema_error(
                     &format!("{path}[{index}]"),
                     "unions may not immediately contain other unions",
@@ -360,7 +356,7 @@ impl Parser {
                 );
             }
         }
-        Ok(Schema::Union(schemas))
+        Ok(SchemaNode::Union(schemas))
     }
 
     /// Resolves a reference to a named type: a dotted name is a fullname, a
@@ -371,7 +367,7 @@ impl Parser {
         name: &str,
         enclosing: Option<&str>,
         path: &str,
-    ) -> Result<Schema> {
+    ) -> Result<SchemaNode> {
         let candidates: Vec<FullName> = if let Some((namespace, name)) = split_fullname(name) {
             vec![FullName::new(Some(&namespace), &name)]
         } else {
@@ -385,9 +381,9 @@ impl Parser {
         for candidate in &candidates {
             if let Some(kind) = self.index.get(candidate) {
                 return Ok(match kind {
-                    NamedKind::Record => Schema::Record(candidate.clone()),
-                    NamedKind::Enum => Schema::Enum(candidate.clone()),
-                    NamedKind::Fixed => Schema::Fixed(candidate.clone()),
+                    NamedKind::Record => SchemaNode::Record(candidate.clone()),
+                    NamedKind::Enum => SchemaNode::Enum(candidate.clone()),
+                    NamedKind::Fixed => SchemaNode::Fixed(candidate.clone()),
                 });
             }
         }
@@ -436,33 +432,33 @@ impl Parser {
     }
 
     /// Checks a JSON value against the default value encoding of a schema.
-    fn default_matches(&self, schema: &Schema, value: &Value) -> bool {
-        match schema {
-            Schema::Null => value.is_null(),
-            Schema::Boolean => value.is_boolean(),
-            Schema::Int => value.as_i64().is_some_and(|number| {
+    fn default_matches(&self, node: &SchemaNode, value: &Value) -> bool {
+        match node {
+            SchemaNode::Null => value.is_null(),
+            SchemaNode::Boolean => value.is_boolean(),
+            SchemaNode::Int => value.as_i64().is_some_and(|number| {
                 (i64::from(i32::MIN)..=i64::from(i32::MAX)).contains(&number)
             }),
-            Schema::Long => {
+            SchemaNode::Long => {
                 value.as_i64().is_some()
                     || value
                         .as_u64()
                         .is_some_and(|number| i128::from(number) <= i128::from(i64::MAX))
             }
-            Schema::Float | Schema::Double => value.is_number(),
-            Schema::Bytes => value.as_str().is_some_and(is_byte_string),
-            Schema::String => value.is_string(),
-            Schema::Fixed(name) => self.fixed(name).is_some_and(|fixed| {
+            SchemaNode::Float | SchemaNode::Double => value.is_number(),
+            SchemaNode::Bytes => value.as_str().is_some_and(is_byte_string),
+            SchemaNode::String => value.is_string(),
+            SchemaNode::Fixed(name) => self.fixed(name).is_some_and(|fixed| {
                 value.as_str().is_some_and(|string| {
                     is_byte_string(string) && string.chars().count() == fixed.size as usize
                 })
             }),
-            Schema::Enum(name) => self.enum_type(name).is_some_and(|enum_| {
+            SchemaNode::Enum(name) => self.enum_type(name).is_some_and(|enum_| {
                 value
                     .as_str()
                     .is_some_and(|symbol| enum_.symbols.iter().any(|s| s == symbol))
             }),
-            Schema::Record(name) => self.record(name).is_some_and(|record| {
+            SchemaNode::Record(name) => self.record(name).is_some_and(|record| {
                 value.as_object().is_some_and(|object| {
                     object.iter().all(|(field_name, field_value)| {
                         record
@@ -476,31 +472,31 @@ impl Parser {
                         .all(|field| object.contains_key(&field.name) || field.default.is_some())
                 })
             }),
-            Schema::Array(items) => value.as_array().is_some_and(|items_json| {
+            SchemaNode::Array(items) => value.as_array().is_some_and(|items_json| {
                 items_json.iter().all(|v| self.default_matches(items, v))
             }),
-            Schema::Map(values) => value
+            SchemaNode::Map(values) => value
                 .as_object()
                 .is_some_and(|object| object.values().all(|v| self.default_matches(values, v))),
-            Schema::Union(branches) => branches
+            SchemaNode::Union(branches) => branches
                 .iter()
                 .any(|branch| self.default_matches(branch, value)),
-            Schema::Logical { base, .. } => self.default_matches(base, value),
+            SchemaNode::Logical { base, .. } => self.default_matches(base, value),
         }
     }
 }
 
 /// Returns the primitive schema for a primitive type name.
-fn primitive_schema(name: &str) -> Option<Schema> {
+fn primitive_schema(name: &str) -> Option<SchemaNode> {
     match name {
-        "null" => Some(Schema::Null),
-        "boolean" => Some(Schema::Boolean),
-        "int" => Some(Schema::Int),
-        "long" => Some(Schema::Long),
-        "float" => Some(Schema::Float),
-        "double" => Some(Schema::Double),
-        "bytes" => Some(Schema::Bytes),
-        "string" => Some(Schema::String),
+        "null" => Some(SchemaNode::Null),
+        "boolean" => Some(SchemaNode::Boolean),
+        "int" => Some(SchemaNode::Int),
+        "long" => Some(SchemaNode::Long),
+        "float" => Some(SchemaNode::Float),
+        "double" => Some(SchemaNode::Double),
+        "bytes" => Some(SchemaNode::Bytes),
+        "string" => Some(SchemaNode::String),
         _ => None,
     }
 }
@@ -755,14 +751,14 @@ fn is_byte_string(string: &str) -> bool {
 /// than one schema of the same type, except for named types, which are
 /// distinguished by fullname. Collections count as their type regardless of
 /// their item or value schemas.
-fn union_branch_type_key(branch: &Schema) -> String {
+fn union_branch_type_key(branch: &SchemaNode) -> String {
     match branch {
-        Schema::Record(name) => format!("record:{name}"),
-        Schema::Enum(name) => format!("enum:{name}"),
-        Schema::Fixed(name) => format!("fixed:{name}"),
-        Schema::Array(_) => "array".to_owned(),
-        Schema::Map(_) => "map".to_owned(),
-        Schema::Logical { base, .. } => union_branch_type_key(base),
+        SchemaNode::Record(name) => format!("record:{name}"),
+        SchemaNode::Enum(name) => format!("enum:{name}"),
+        SchemaNode::Fixed(name) => format!("fixed:{name}"),
+        SchemaNode::Array(_) => "array".to_owned(),
+        SchemaNode::Map(_) => "map".to_owned(),
+        SchemaNode::Logical { base, .. } => union_branch_type_key(base),
         other => other.avro_type_name().to_owned(),
     }
 }
@@ -772,27 +768,27 @@ fn union_branch_type_key(branch: &Schema) -> String {
 /// which case the underlying type is used as required by the specification.
 fn logical_type(
     name: &str,
-    base: &Schema,
+    base: &SchemaNode,
     object: &Map<String, Value>,
     version: AvroVersion,
 ) -> Option<LogicalType> {
     match (name, base) {
-        ("decimal", Schema::Bytes) => decimal_from(object),
-        ("big-decimal", Schema::Bytes) if version >= AvroVersion::V1_12 => {
+        ("decimal", SchemaNode::Bytes) => decimal_from(object),
+        ("big-decimal", SchemaNode::Bytes) if version >= AvroVersion::V1_12 => {
             Some(LogicalType::BigDecimal)
         }
-        ("uuid", Schema::String) => Some(LogicalType::Uuid),
-        ("date", Schema::Int) => Some(LogicalType::Date),
-        ("time-millis", Schema::Int) => Some(LogicalType::TimeMillis),
-        ("time-micros", Schema::Long) => Some(LogicalType::TimeMicros),
-        ("timestamp-millis", Schema::Long) => Some(LogicalType::TimestampMillis),
-        ("timestamp-micros", Schema::Long) => Some(LogicalType::TimestampMicros),
-        ("timestamp-nanos", Schema::Long) if version >= AvroVersion::V1_12 => {
+        ("uuid", SchemaNode::String) => Some(LogicalType::Uuid),
+        ("date", SchemaNode::Int) => Some(LogicalType::Date),
+        ("time-millis", SchemaNode::Int) => Some(LogicalType::TimeMillis),
+        ("time-micros", SchemaNode::Long) => Some(LogicalType::TimeMicros),
+        ("timestamp-millis", SchemaNode::Long) => Some(LogicalType::TimestampMillis),
+        ("timestamp-micros", SchemaNode::Long) => Some(LogicalType::TimestampMicros),
+        ("timestamp-nanos", SchemaNode::Long) if version >= AvroVersion::V1_12 => {
             Some(LogicalType::TimestampNanos)
         }
-        ("local-timestamp-millis", Schema::Long) => Some(LogicalType::LocalTimestampMillis),
-        ("local-timestamp-micros", Schema::Long) => Some(LogicalType::LocalTimestampMicros),
-        ("local-timestamp-nanos", Schema::Long) if version >= AvroVersion::V1_12 => {
+        ("local-timestamp-millis", SchemaNode::Long) => Some(LogicalType::LocalTimestampMillis),
+        ("local-timestamp-micros", SchemaNode::Long) => Some(LogicalType::LocalTimestampMicros),
+        ("local-timestamp-nanos", SchemaNode::Long) if version >= AvroVersion::V1_12 => {
             Some(LogicalType::LocalTimestampNanos)
         }
         _ => None,
@@ -844,7 +840,7 @@ fn max_decimal_precision(size: u32) -> u32 {
 mod tests {
     use super::*;
 
-    fn parse_ok(source: &str) -> Document {
+    fn parse_ok(source: &str) -> Schema {
         parse(source, AvroVersion::V1_12).unwrap_or_else(|error| panic!("{error}"))
     }
 
@@ -854,12 +850,12 @@ mod tests {
             .to_string()
     }
 
-    fn fullnames(document: &Document) -> Vec<String> {
-        document.types.iter().map(|ty| ty.name().full()).collect()
+    fn fullnames(schema: &Schema) -> Vec<String> {
+        schema.types.iter().map(|ty| ty.name().full()).collect()
     }
 
-    fn record_of<'a>(document: &'a Document, fullname: &str) -> &'a Record {
-        document
+    fn record_of<'a>(schema: &'a Schema, fullname: &str) -> &'a Record {
+        schema
             .types
             .iter()
             .find_map(|ty| match ty {
@@ -871,9 +867,9 @@ mod tests {
 
     #[test]
     fn parses_primitive_strings_and_objects() {
-        assert_eq!(parse_ok(r#""null""#).root, Schema::Null);
-        assert_eq!(parse_ok(r#"{"type": "int"}"#).root, Schema::Int);
-        assert_eq!(parse_ok(r#"{"type": "string"}"#).root, Schema::String);
+        assert_eq!(parse_ok(r#""null""#).root, SchemaNode::Null);
+        assert_eq!(parse_ok(r#"{"type": "int"}"#).root, SchemaNode::Int);
+        assert_eq!(parse_ok(r#"{"type": "string"}"#).root, SchemaNode::String);
     }
 
     #[test]
@@ -895,7 +891,7 @@ mod tests {
 
     #[test]
     fn determines_fullnames_per_specification() {
-        let document = parse_ok(
+        let schema = parse_ok(
             r#"{
                 "type": "record",
                 "name": "Example",
@@ -921,7 +917,7 @@ mod tests {
             }"#,
         );
         assert_eq!(
-            fullnames(&document),
+            fullnames(&schema),
             [
                 "Example",
                 "Simple",
@@ -934,15 +930,15 @@ mod tests {
 
     #[test]
     fn explicit_empty_namespace_is_the_null_namespace() {
-        let document =
+        let schema =
             parse_ok(r#"{"type": "record", "name": "Plain", "namespace": "", "fields": []}"#);
-        assert_eq!(fullnames(&document), ["Plain"]);
-        assert_eq!(document.types[0].name().namespace, None);
+        assert_eq!(fullnames(&schema), ["Plain"]);
+        assert_eq!(schema.types[0].name().namespace, None);
     }
 
     #[test]
     fn resolves_references_in_enclosing_then_null_namespace() {
-        let document = parse_ok(
+        let schema = parse_ok(
             r#"{
                 "type": "record", "name": "com.example.Outer", "fields": [
                     {"name": "a", "type": {
@@ -961,9 +957,11 @@ mod tests {
                 ]
             }"#,
         );
-        let outer = record_of(&document, "com.example.Outer");
+        let outer = record_of(&schema, "com.example.Outer");
         let resolved = |index: usize| match &outer.fields[index].schema {
-            Schema::Record(name) | Schema::Enum(name) | Schema::Fixed(name) => name.full(),
+            SchemaNode::Record(name) | SchemaNode::Enum(name) | SchemaNode::Fixed(name) => {
+                name.full()
+            }
             other => panic!("unexpected field schema: {other:?}"),
         };
         assert_eq!(resolved(3), "com.example.Inner");
@@ -1047,11 +1045,11 @@ mod tests {
 
     #[test]
     fn parses_enums() {
-        let document = parse_ok(
+        let schema = parse_ok(
             r#"{"type": "enum", "name": "Suit", "doc": "Suits.",
                 "symbols": ["SPADES", "HEARTS"], "default": "SPADES"}"#,
         );
-        let NamedType::Enum(enum_) = &document.types[0] else {
+        let NamedType::Enum(enum_) = &schema.types[0] else {
             panic!("expected an enum");
         };
         assert_eq!(enum_.symbols, ["SPADES", "HEARTS"]);
@@ -1085,17 +1083,17 @@ mod tests {
 
     #[test]
     fn parses_fixed_with_size() {
-        let document = parse_ok(
+        let schema = parse_ok(
             r#"{"type": "record", "name": "R", "fields": [
                 {"name": "md5", "type": {"type": "fixed", "name": "Md5", "size": 16}},
                 {"name": "copy", "type": "Md5"}
             ]}"#,
         );
-        let NamedType::Fixed(fixed) = &document.types[1] else {
+        let NamedType::Fixed(fixed) = &schema.types[1] else {
             panic!("expected a fixed");
         };
         assert_eq!(fixed.size, 16);
-        assert!(matches!(document.root, Schema::Record(_)));
+        assert!(matches!(schema.root, SchemaNode::Record(_)));
     }
 
     #[test]
@@ -1116,31 +1114,33 @@ mod tests {
 
     #[test]
     fn parses_collections() {
-        let document = parse_ok(
+        let schema = parse_ok(
             r#"{"type": "record", "name": "R", "fields": [
                 {"name": "ids", "type": {"type": "array", "items": "long"}},
                 {"name": "labels", "type": {"type": "map", "values": "string"}}
             ]}"#,
         );
-        let record = record_of(&document, "R");
+        let record = record_of(&schema, "R");
         assert!(
-            matches!(&record.fields[0].schema, Schema::Array(items) if **items == Schema::Long)
+            matches!(&record.fields[0].schema, SchemaNode::Array(items) if **items == SchemaNode::Long)
         );
         assert!(
-            matches!(&record.fields[1].schema, Schema::Map(values) if **values == Schema::String)
+            matches!(&record.fields[1].schema, SchemaNode::Map(values) if **values == SchemaNode::String)
         );
     }
 
     #[test]
     fn parses_self_referencing_unions() {
-        let document = parse_ok(
+        let schema = parse_ok(
             r#"{"type": "record", "name": "LongList", "fields": [
                 {"name": "value", "type": "long"},
                 {"name": "next", "type": ["null", "LongList"]}
             ]}"#,
         );
-        let record = record_of(&document, "LongList");
-        assert!(matches!(&record.fields[1].schema, Schema::Union(branches) if branches.len() == 2));
+        let record = record_of(&schema, "LongList");
+        assert!(
+            matches!(&record.fields[1].schema, SchemaNode::Union(branches) if branches.len() == 2)
+        );
     }
 
     #[test]
@@ -1170,7 +1170,7 @@ mod tests {
 
     #[test]
     fn unions_may_repeat_named_types() {
-        let document = parse_ok(
+        let schema = parse_ok(
             r#"{"type": "record", "name": "R", "fields": [
                 {"name": "x", "type": [
                     {"type": "record", "name": "A", "fields": []},
@@ -1178,18 +1178,18 @@ mod tests {
                 ]}
             ]}"#,
         );
-        assert_eq!(fullnames(&document), ["R", "A", "B"]);
+        assert_eq!(fullnames(&schema), ["R", "A", "B"]);
     }
 
     #[test]
     fn parses_field_attributes() {
-        let document = parse_ok(
+        let schema = parse_ok(
             r#"{"type": "record", "name": "R", "fields": [
                 {"name": "x", "type": "int", "doc": "An x.", "order": "descending",
                  "aliases": ["y", "z"], "default": 3}
             ]}"#,
         );
-        let field = &record_of(&document, "R").fields[0];
+        let field = &record_of(&schema, "R").fields[0];
         assert_eq!(field.doc.as_deref(), Some("An x."));
         assert_eq!(field.order, Order::Descending);
         assert_eq!(field.aliases, ["y", "z"]);
@@ -1285,7 +1285,7 @@ mod tests {
 
     #[test]
     fn parses_logical_types() {
-        let document = parse_ok(
+        let schema = parse_ok(
             r#"{"type": "record", "name": "L", "fields": [
                 {"name": "date", "type": {"type": "int", "logicalType": "date"}},
                 {"name": "timeMillis", "type": {"type": "int", "logicalType": "time-millis"}},
@@ -1308,12 +1308,12 @@ mod tests {
                     "logicalType": "decimal", "precision": 18, "scale": 6}}
             ]}"#,
         );
-        let record = record_of(&document, "L");
+        let record = record_of(&schema, "L");
         let kinds: Vec<LogicalType> = record
             .fields
             .iter()
             .filter_map(|field| match &field.schema {
-                Schema::Logical { kind, .. } => Some(*kind),
+                SchemaNode::Logical { kind, .. } => Some(*kind),
                 _ => None,
             })
             .collect();
@@ -1337,7 +1337,7 @@ mod tests {
                 LogicalType::BigDecimal,
             ]
         );
-        let fixed_logical = |name: &str| match document.get(&FullName::new(None, name)) {
+        let fixed_logical = |name: &str| match schema.get(&FullName::new(None, name)) {
             Some(NamedType::Fixed(fixed)) => fixed.logical,
             _ => panic!("fixed `{name}` not defined"),
         };
@@ -1357,22 +1357,28 @@ mod tests {
         let nanos = r#"{"type": "long", "logicalType": "timestamp-nanos"}"#;
         assert!(matches!(
             parse(nanos, AvroVersion::V1_12).unwrap().root,
-            Schema::Logical {
+            SchemaNode::Logical {
                 kind: LogicalType::TimestampNanos,
                 ..
             }
         ));
-        assert_eq!(parse(nanos, AvroVersion::V1_11).unwrap().root, Schema::Long);
+        assert_eq!(
+            parse(nanos, AvroVersion::V1_11).unwrap().root,
+            SchemaNode::Long
+        );
 
         let big = r#"{"type": "bytes", "logicalType": "big-decimal"}"#;
         assert!(matches!(
             parse(big, AvroVersion::V1_12).unwrap().root,
-            Schema::Logical {
+            SchemaNode::Logical {
                 kind: LogicalType::BigDecimal,
                 ..
             }
         ));
-        assert_eq!(parse(big, AvroVersion::V1_11).unwrap().root, Schema::Bytes);
+        assert_eq!(
+            parse(big, AvroVersion::V1_11).unwrap().root,
+            SchemaNode::Bytes
+        );
 
         let uuid_fixed = r#"{"type": "fixed", "name": "U", "size": 16, "logicalType": "uuid"}"#;
         let v12 = parse(uuid_fixed, AvroVersion::V1_12).unwrap();
@@ -1390,15 +1396,21 @@ mod tests {
     #[test]
     fn invalid_logical_types_fall_back_to_the_base_type() {
         let cases = [
-            (r#"{"type": "int", "logicalType": "flavor"}"#, Schema::Int),
-            (r#"{"type": "long", "logicalType": "date"}"#, Schema::Long),
+            (
+                r#"{"type": "int", "logicalType": "flavor"}"#,
+                SchemaNode::Int,
+            ),
+            (
+                r#"{"type": "long", "logicalType": "date"}"#,
+                SchemaNode::Long,
+            ),
             (
                 r#"{"type": "bytes", "logicalType": "decimal", "precision": 4, "scale": 9}"#,
-                Schema::Bytes,
+                SchemaNode::Bytes,
             ),
             (
                 r#"{"type": "bytes", "logicalType": "decimal", "scale": 2}"#,
-                Schema::Bytes,
+                SchemaNode::Bytes,
             ),
         ];
         for (source, expected) in cases {
@@ -1416,9 +1428,9 @@ mod tests {
 
     #[test]
     fn resolves_aliases_relative_to_own_namespace() {
-        let document =
+        let schema =
             parse_ok(r#"{"type": "record", "name": "a.b", "aliases": ["c", "x.y"], "fields": []}"#);
-        let aliases: Vec<String> = document.types[0]
+        let aliases: Vec<String> = schema.types[0]
             .aliases()
             .iter()
             .map(FullName::full)

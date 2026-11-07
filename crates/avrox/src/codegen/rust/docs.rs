@@ -3,7 +3,7 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use crate::schema::{Fixed, LogicalType, Schema};
+use crate::schema::{Fixed, LogicalType, SchemaNode};
 
 /// Builds doc comment attributes from an Avro `doc` and extra lines.
 pub(super) fn attributes(doc: Option<&str>, extra: Vec<String>) -> Vec<TokenStream> {
@@ -26,9 +26,9 @@ pub(super) fn attributes(doc: Option<&str>, extra: Vec<String>) -> Vec<TokenStre
 }
 
 /// Extra doc lines describing the logical type of a field schema.
-pub(super) fn logical_lines(schema: &Schema) -> Vec<String> {
-    match schema {
-        Schema::Logical { kind, .. } => vec![logical_line(*kind)],
+pub(super) fn logical_lines(node: &SchemaNode) -> Vec<String> {
+    match node {
+        SchemaNode::Logical { kind, .. } => vec![logical_line(*kind)],
         _ => Vec::new(),
     }
 }
