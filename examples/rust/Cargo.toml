@@ -9,5 +9,6 @@ publish = false
 
 [dependencies]
 apache-avro = "0.22"
+chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_bytes = "0.11"

@@ -119,6 +119,12 @@ fn module_file<'a>(files: &'a [GeneratedFile], path: &str) -> &'a str {
 }
 
 #[test]
+fn defaults_to_chrono_time() {
+    assert_eq!(RustOptions::default().time, RustTime::Chrono);
+    assert_eq!(Settings::default().rust.time, RustTime::Chrono);
+}
+
+#[test]
 fn generates_a_simple_record() {
     let files = generate_ok(
         r#"{"type": "record", "name": "User", "doc": "A user.", "fields": [
@@ -267,7 +273,7 @@ fn documents_logical_types() {
         ]}"#,
     );
     assert!(contents.contains("Logical type `date`: days from the unix epoch."));
-    assert!(contents.contains("pub date: i32,"));
+    assert!(contents.contains("pub date: chrono::NaiveDate,"));
     assert!(contents.contains(
         "Logical type `decimal`: arbitrary-precision signed decimal \
                            (precision 4, scale 2)."
@@ -303,7 +309,7 @@ fn avro_types_use_apache_avro_types() {
     assert!(contents.contains("pub decimal_fixed: apache_avro::Decimal,"));
     assert!(contents.contains("pub big_decimal: apache_avro::Decimal,"));
     assert!(contents.contains("pub duration: apache_avro::Duration,"));
-    assert!(contents.contains("pub date: i32,"));
+    assert!(contents.contains("pub date: chrono::NaiveDate,"));
     assert!(contents.contains("pub payload: ByteBuf,"));
     assert!(contents.contains("pub type Digest = ByteArray<4>;"));
     assert!(contents.contains("pub type U = ByteArray<16>;"));
@@ -404,7 +410,7 @@ fn std_types_use_only_std_and_generated_helpers() {
     assert!(contents.contains("pub decimal_fixed: P,"));
     assert!(contents.contains("pub big_decimal: Bytes,"));
     assert!(contents.contains("pub duration: D,"));
-    assert!(contents.contains("pub date: i32,"));
+    assert!(contents.contains("pub date: chrono::NaiveDate,"));
     assert!(contents.contains("pub payload: Bytes,"));
     assert!(contents.contains("pub digest: Digest,"));
     assert!(contents.contains("pub struct Bytes(pub Vec<u8>);"));
@@ -443,7 +449,7 @@ const TIME_SCHEMA: &str = r#"{"type": "record", "name": "T", "fields": [
 
 #[test]
 fn primitives_mode_keeps_time_integers() {
-    let contents = contents_of(TIME_SCHEMA);
+    let contents = contents_of_time(TIME_SCHEMA, RustTime::Primitives);
     assert!(contents.contains("pub date: i32,"));
     assert!(contents.contains("pub time_millis: i32,"));
     assert!(contents.contains("pub timestamp: i64,"));

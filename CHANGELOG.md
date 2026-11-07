@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `--rust-time` and `RustOptions::time` now default to `chrono` instead of
+  `primitives`, so time-related logical types generate bare `chrono` types with
+  field-level `serde` adapters out of the box. Generated code then needs
+  `chrono` 0.4.40 or later with the `serde` feature; pass
+  `--rust-time primitives` (or `RustTime::Primitives`) for the previous
+  behaviour.
+
 ## [1.5.0] - 2026-11-07
 
 ### Changed

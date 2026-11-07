@@ -6,7 +6,7 @@
 //! - avro version: 1.11
 //! - layout: single
 //! - rust types: avro
-//! - rust time: primitives
+//! - rust time: chrono
 //! - rust derives: none
 use serde::{Deserialize, Serialize};
 use serde_bytes::{ByteArray, ByteBuf};
@@ -28,31 +28,181 @@ mod __avrox_uuid {
         }
     }
 }
+#[allow(dead_code)]
+mod __avrox_time {
+    pub(crate) mod date {
+        pub(crate) fn serialize<S: serde::Serializer>(
+            value: &chrono::NaiveDate,
+            serializer: S,
+        ) -> Result<S::Ok, S::Error> {
+            serializer.serialize_i32(value.to_epoch_days())
+        }
+        pub(crate) fn deserialize<'de, D: serde::Deserializer<'de>>(
+            deserializer: D,
+        ) -> Result<chrono::NaiveDate, D::Error> {
+            struct Visitor;
+            impl<'de> serde::de::Visitor<'de> for Visitor {
+                type Value = chrono::NaiveDate;
+                fn expecting(
+                    &self,
+                    formatter: &mut std::fmt::Formatter,
+                ) -> std::fmt::Result {
+                    formatter.write_str("an Avro `date` value")
+                }
+                fn visit_i32<E: serde::de::Error>(
+                    self,
+                    value: i32,
+                ) -> Result<Self::Value, E> {
+                    chrono::NaiveDate::from_epoch_days(value)
+                        .ok_or_else(|| E::custom("value out of range"))
+                }
+            }
+            deserializer.deserialize_i32(Visitor)
+        }
+    }
+    pub(crate) mod time_millis {
+        pub(super) fn millis(value: &chrono::NaiveTime) -> Option<i32> {
+            i32::try_from(
+                    u64::from(chrono::Timelike::hour(value)) * 3_600_000
+                        + u64::from(chrono::Timelike::minute(value)) * 60_000
+                        + u64::from(chrono::Timelike::second(value)) * 1_000
+                        + u64::from(chrono::Timelike::nanosecond(value)) / 1_000_000,
+                )
+                .ok()
+        }
+        fn from_millis(value: i32) -> Option<chrono::NaiveTime> {
+            if value < 0 {
+                return None;
+            }
+            u32::try_from(value / 1_000)
+                .ok()
+                .and_then(|seconds| {
+                    chrono::NaiveTime::from_num_seconds_from_midnight_opt(
+                        seconds,
+                        (value % 1_000) as u32 * 1_000_000,
+                    )
+                })
+        }
+        pub(crate) fn serialize<S: serde::Serializer>(
+            value: &chrono::NaiveTime,
+            serializer: S,
+        ) -> Result<S::Ok, S::Error> {
+            serializer
+                .serialize_i32(
+                    millis(value)
+                        .ok_or_else(|| serde::ser::Error::custom("value out of range"))?,
+                )
+        }
+        pub(crate) fn deserialize<'de, D: serde::Deserializer<'de>>(
+            deserializer: D,
+        ) -> Result<chrono::NaiveTime, D::Error> {
+            struct Visitor;
+            impl<'de> serde::de::Visitor<'de> for Visitor {
+                type Value = chrono::NaiveTime;
+                fn expecting(
+                    &self,
+                    formatter: &mut std::fmt::Formatter,
+                ) -> std::fmt::Result {
+                    formatter.write_str("an Avro `time-millis` value")
+                }
+                fn visit_i32<E: serde::de::Error>(
+                    self,
+                    value: i32,
+                ) -> Result<Self::Value, E> {
+                    from_millis(value).ok_or_else(|| E::custom("value out of range"))
+                }
+            }
+            deserializer.deserialize_i32(Visitor)
+        }
+    }
+    pub(crate) mod time_micros {
+        pub(super) fn micros(value: &chrono::NaiveTime) -> Option<i64> {
+            i64::try_from(
+                    u64::from(chrono::Timelike::hour(value)) * 3_600_000_000
+                        + u64::from(chrono::Timelike::minute(value)) * 60_000_000
+                        + u64::from(chrono::Timelike::second(value)) * 1_000_000
+                        + u64::from(chrono::Timelike::nanosecond(value)) / 1_000,
+                )
+                .ok()
+        }
+        fn from_micros(value: i64) -> Option<chrono::NaiveTime> {
+            if value < 0 {
+                return None;
+            }
+            u32::try_from(value / 1_000_000)
+                .ok()
+                .and_then(|seconds| {
+                    chrono::NaiveTime::from_num_seconds_from_midnight_opt(
+                        seconds,
+                        (value % 1_000_000) as u32 * 1_000,
+                    )
+                })
+        }
+        pub(crate) fn serialize<S: serde::Serializer>(
+            value: &chrono::NaiveTime,
+            serializer: S,
+        ) -> Result<S::Ok, S::Error> {
+            serializer
+                .serialize_i64(
+                    micros(value)
+                        .ok_or_else(|| serde::ser::Error::custom("value out of range"))?,
+                )
+        }
+        pub(crate) fn deserialize<'de, D: serde::Deserializer<'de>>(
+            deserializer: D,
+        ) -> Result<chrono::NaiveTime, D::Error> {
+            struct Visitor;
+            impl<'de> serde::de::Visitor<'de> for Visitor {
+                type Value = chrono::NaiveTime;
+                fn expecting(
+                    &self,
+                    formatter: &mut std::fmt::Formatter,
+                ) -> std::fmt::Result {
+                    formatter.write_str("an Avro `time-micros` value")
+                }
+                fn visit_i64<E: serde::de::Error>(
+                    self,
+                    value: i64,
+                ) -> Result<Self::Value, E> {
+                    from_micros(value).ok_or_else(|| E::custom("value out of range"))
+                }
+            }
+            deserializer.deserialize_i64(Visitor)
+        }
+    }
+}
 /// Every logical type of Avro 1.12.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Logical {
     /// Logical type `date`: days from the unix epoch.
-    pub date: i32,
+    #[serde(with = "__avrox_time::date")]
+    pub date: chrono::NaiveDate,
     /// Logical type `time-millis`: milliseconds after midnight.
     #[serde(rename = "timeMillis")]
-    pub time_millis: i32,
+    #[serde(with = "__avrox_time::time_millis")]
+    pub time_millis: chrono::NaiveTime,
     /// Logical type `time-micros`: microseconds after midnight.
     #[serde(rename = "timeMicros")]
-    pub time_micros: i64,
+    #[serde(with = "__avrox_time::time_micros")]
+    pub time_micros: chrono::NaiveTime,
     /// Logical type `timestamp-millis`: milliseconds from the unix epoch.
     #[serde(rename = "timestampMillis")]
-    pub timestamp_millis: i64,
+    #[serde(with = "chrono::serde::ts_milliseconds")]
+    pub timestamp_millis: chrono::DateTime<chrono::Utc>,
     /// Logical type `timestamp-micros`: microseconds from the unix epoch.
     #[serde(rename = "timestampMicros")]
-    pub timestamp_micros: i64,
+    #[serde(with = "chrono::serde::ts_microseconds")]
+    pub timestamp_micros: chrono::DateTime<chrono::Utc>,
     #[serde(rename = "timestampNanos")]
     pub timestamp_nanos: i64,
     /// Logical type `local-timestamp-millis`: milliseconds from the unix epoch, local time.
     #[serde(rename = "localTimestampMillis")]
-    pub local_timestamp_millis: i64,
+    #[serde(with = "chrono::naive::serde::ts_milliseconds")]
+    pub local_timestamp_millis: chrono::NaiveDateTime,
     /// Logical type `local-timestamp-micros`: microseconds from the unix epoch, local time.
     #[serde(rename = "localTimestampMicros")]
-    pub local_timestamp_micros: i64,
+    #[serde(with = "chrono::naive::serde::ts_microseconds")]
+    pub local_timestamp_micros: chrono::NaiveDateTime,
     #[serde(rename = "localTimestampNanos")]
     pub local_timestamp_nanos: i64,
     /// Logical type `uuid`: universally unique identifier.

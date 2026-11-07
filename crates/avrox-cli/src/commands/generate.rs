@@ -31,7 +31,7 @@ pub(crate) struct Generate {
     rust_types: TypesArg,
 
     /// How time-related logical types are represented in Rust.
-    #[arg(long, value_enum, default_value = "primitives")]
+    #[arg(long, value_enum, default_value = "chrono")]
     rust_time: TimeArg,
 
     /// Additional derives to add to generated Rust data types. May be given

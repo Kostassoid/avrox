@@ -101,23 +101,23 @@ Rust types (`--rust-types`):
   gets generated `serde` adapters that encode it as a UUID string;
 - `std`: only standard library types plus types generated into the output (a
   `Bytes` newtype and one newtype per `fixed` type, with `serde`
-  implementations that serialize as Avro bytes). Logical types keep their
-  underlying primitives.
+  implementations that serialize as Avro bytes). Non-time logical types keep
+  their underlying primitives.
 
 Rust time (`--rust-time`):
 
-- `primitives` (default): time-related logical types (`date`, `time-*`,
-  `timestamp-*`, `local-timestamp-*`) keep their underlying integers
-  (`i32`/`i64`), documented on the fields carrying them;
-- `std-time`: timestamps become `std::time::SystemTime` and times-of-day
-  `std::time::Duration`, with field-level `serde` adapters that encode them as
-  the Avro integers of their logical types. `date` has no standard library
-  representation and stays an `i32`. No extra dependencies;
-- `chrono`: time-related logical types become `chrono::NaiveDate`,
+- `chrono` (default): time-related logical types become `chrono::NaiveDate`,
   `chrono::NaiveTime`, `chrono::DateTime<Utc>` and `chrono::NaiveDateTime`,
   with field-level `serde` adapters that encode them as the Avro integers of
   their logical types. Requires `chrono` 0.4.40 or later with the `serde`
-  feature.
+  feature;
+- `primitives`: time-related logical types (`date`, `time-*`, `timestamp-*`,
+  `local-timestamp-*`) keep their underlying integers (`i32`/`i64`), documented
+  on the fields carrying them. No extra dependencies;
+- `std-time`: timestamps become `std::time::SystemTime` and times-of-day
+  `std::time::Duration`, with field-level `serde` adapters that encode them as
+  the Avro integers of their logical types. `date` has no standard library
+  representation and stays an `i32`. No extra dependencies.
 
 Rust derives (`--rust-derive <DERIVE>`):
 
@@ -147,7 +147,9 @@ collection elements.
 
 `std` mode needs only `serde` with `derive`; `avro` mode needs `serde`,
 `serde_bytes` and `apache-avro`. Both round-trip through `apache-avro`'s binary
-codec.
+codec, and both need `chrono` 0.4.40 or later with the `serde` feature when
+`--rust-time` is `chrono` (the default) — `primitives` and `std-time` need no
+extra dependencies.
 
 ### extract-schema
 

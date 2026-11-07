@@ -15,9 +15,9 @@
 //! [`RustTypes::Std`] uses only standard library types plus types generated
 //! into the output. Both round-trip through `apache-avro`'s binary codec.
 //!
-//! [`RustTime`] controls how time-related logical types are represented:
-//! underlying integers (the default), [`std::time`] newtypes or bare `chrono`
-//! types with `serde` adapters.
+//! [`RustTime`] controls how time-related logical types are represented: bare
+//! `chrono` types with `serde` adapters (the default), [`std::time`] newtypes
+//! or underlying integers.
 //!
 //! [`RustOptions::derives`] adds derives to generated records, enums and union
 //! enums. Common derives can be given by their short name (`Hash`); derives
@@ -76,7 +76,7 @@ pub struct Settings {
 
 impl Default for Settings {
     /// Defaults to Rust, the latest supported Avro version, a single output
-    /// file and [`RustTypes::ApacheAvro`].
+    /// file, [`RustTypes::ApacheAvro`] and [`RustTime::Chrono`].
     fn default() -> Self {
         Self {
             language: Language::Rust,
@@ -186,12 +186,12 @@ pub struct RustOptions {
 }
 
 impl Default for RustOptions {
-    /// Defaults to [`RustTypes::ApacheAvro`], [`RustTime::Primitives`] and no
+    /// Defaults to [`RustTypes::ApacheAvro`], [`RustTime::Chrono`] and no
     /// additional derives.
     fn default() -> Self {
         Self {
             types: RustTypes::ApacheAvro,
-            time: RustTime::Primitives,
+            time: RustTime::Chrono,
             derives: Vec::new(),
         }
     }
@@ -248,7 +248,7 @@ impl RustOptions {
 #[non_exhaustive]
 pub enum RustTime {
     /// Their underlying integer types (`i32`/`i64`), documented on the fields
-    /// carrying them. This is the default and needs no extra dependencies.
+    /// carrying them. Needs no extra dependencies.
     Primitives,
     /// [`std::time`]: timestamps keep their natural [`std::time::SystemTime`]
     /// type and times-of-day use [`std::time::Duration`], with field-level
@@ -264,7 +264,8 @@ pub enum RustTime {
     /// them as the Avro integers of their logical types. Logical types nested
     /// inside arrays or maps use generated newtypes because `serde` cannot
     /// attach field attributes to collection elements. The consuming crate
-    /// needs `chrono` 0.4.40 or later with the `serde` feature enabled.
+    /// needs `chrono` 0.4.40 or later with the `serde` feature enabled. This
+    /// is the default.
     Chrono,
 }
 
@@ -282,10 +283,11 @@ pub enum RustTypes {
     ApacheAvro,
     /// Uses only standard library types plus types generated into the output
     /// (a `Bytes` newtype and one newtype per `fixed` type, with `serde`
-    /// implementations that serialize as Avro bytes). The generated code
-    /// requires only `serde` to compile and still round-trips through
-    /// `apache-avro`'s binary codec. Logical types keep their underlying
-    /// primitive representations.
+    /// implementations that serialize as Avro bytes). Non-time logical types
+    /// keep their underlying primitive representations. The generated code
+    /// requires only `serde` to compile — plus `chrono` when
+    /// [`RustTime::Chrono`] is selected — and still round-trips through
+    /// `apache-avro`'s binary codec.
     Std,
 }
 

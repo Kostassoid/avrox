@@ -6,7 +6,7 @@
 //! - avro version: 1.12
 //! - layout: single
 //! - rust types: avro
-//! - rust time: primitives
+//! - rust time: chrono
 //! - rust derives: none
 use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -6,7 +6,7 @@
 //! - avro version: 1.12
 //! - layout: module
 //! - rust types: avro
-//! - rust time: primitives
+//! - rust time: chrono
 //! - rust derives: none
 use serde_bytes::ByteArray;
 pub type Sku = ByteArray<8>;

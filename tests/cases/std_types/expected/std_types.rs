@@ -6,9 +6,42 @@
 //! - avro version: 1.12
 //! - layout: single
 //! - rust types: std
-//! - rust time: primitives
+//! - rust time: chrono
 //! - rust derives: none
 use serde::{Deserialize, Serialize};
+#[allow(dead_code)]
+mod __avrox_time {
+    pub(crate) mod date {
+        pub(crate) fn serialize<S: serde::Serializer>(
+            value: &chrono::NaiveDate,
+            serializer: S,
+        ) -> Result<S::Ok, S::Error> {
+            serializer.serialize_i32(value.to_epoch_days())
+        }
+        pub(crate) fn deserialize<'de, D: serde::Deserializer<'de>>(
+            deserializer: D,
+        ) -> Result<chrono::NaiveDate, D::Error> {
+            struct Visitor;
+            impl<'de> serde::de::Visitor<'de> for Visitor {
+                type Value = chrono::NaiveDate;
+                fn expecting(
+                    &self,
+                    formatter: &mut std::fmt::Formatter,
+                ) -> std::fmt::Result {
+                    formatter.write_str("an Avro `date` value")
+                }
+                fn visit_i32<E: serde::de::Error>(
+                    self,
+                    value: i32,
+                ) -> Result<Self::Value, E> {
+                    chrono::NaiveDate::from_epoch_days(value)
+                        .ok_or_else(|| E::custom("value out of range"))
+                }
+            }
+            deserializer.deserialize_i32(Visitor)
+        }
+    }
+}
 /// A byte sequence that serializes as Avro `bytes`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Bytes(pub Vec<u8>);
@@ -93,9 +126,11 @@ pub struct StdTypes {
     pub big_decimal: Bytes,
     pub duration: Duration,
     /// Logical type `date`: days from the unix epoch.
-    pub date: i32,
+    #[serde(with = "__avrox_time::date")]
+    pub date: chrono::NaiveDate,
     /// Logical type `timestamp-micros`: microseconds from the unix epoch.
-    pub timestamp: i64,
+    #[serde(with = "chrono::serde::ts_microseconds")]
+    pub timestamp: chrono::DateTime<chrono::Utc>,
 }
 /// A checksum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]

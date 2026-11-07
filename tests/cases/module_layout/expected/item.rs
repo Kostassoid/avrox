@@ -6,7 +6,7 @@
 //! - avro version: 1.12
 //! - layout: module
 //! - rust types: avro
-//! - rust time: primitives
+//! - rust time: chrono
 //! - rust derives: none
 use serde::{Deserialize, Serialize};
 use serde_bytes::ByteBuf;
