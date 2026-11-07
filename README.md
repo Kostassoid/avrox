@@ -4,10 +4,9 @@
 
 # avrox
 
-Avro code generator, in the spirit of `protoc`: takes `.avsc` schemas and
-produces strongly typed code with serialization boilerplate for a target
-language. Additionally, the CLI provides a command-line interface for generating code and inspecting or
-creating Avro data files.
+Avro code generator in the spirit of `protoc`: reads `.avsc` schemas and
+produces strongly typed code with serialization boilerplate. The CLI can also
+inspect and create Avro data files.
 
 ## Overview
 
@@ -16,33 +15,30 @@ creating Avro data files.
 | [`avrox`](https://github.com/Kostassoid/avrox/tree/main/crates/avrox) | Library: schema parsing, validation and code generation. |
 | [`avrox-cli`](https://github.com/Kostassoid/avrox/tree/main/crates/avrox-cli) | Command line frontend built on top of the library. |
 
-Schemas can target Avro `1.10`, `1.11` or `1.12` (the default). Logical types
-introduced in later versions are version-gated.
+Schemas may target Avro `1.10`, `1.11` or `1.12` (the default); logical types
+from later versions are version-gated.
 
 Known limitations:
 
-- code generation currently targets Rust only;
-- schemas whose types map to colliding Rust names across namespaces are
-  rejected;
+- code generation targets Rust only;
+- schemas mapping to colliding Rust names across namespaces are rejected;
 - Avro protocols (`.avpr`) are not supported;
-- `read` and `write` focus on exploration and debugging: union branches are
-  flattened, bytes and fixed values use byte arrays, decimal and BigDecimal
-  values use strings, and not every detail of Avro's JSON encoding is
-  implemented.
+- `read` and `write` are exploratory tools: union branches are flattened,
+  bytes and fixed values use byte arrays, decimals use strings, and not every
+  detail of Avro's JSON encoding is implemented.
 
 ## CLI
 
 ### Installation
 
-Install from crates.io with Cargo:
+With Cargo:
 
 ```sh
 cargo install avrox-cli
 ```
 
-Alternatively, the installer scripts download the latest prebuilt release for
-your platform, install `avrox-cli` into your Cargo bin directory and add it to
-your `PATH`.
+Or use an installer script, which downloads the latest prebuilt release,
+installs `avrox-cli` into your Cargo bin directory and adds it to `PATH`.
 
 macOS and Linux:
 
@@ -56,14 +52,13 @@ Windows (PowerShell):
 powershell -ExecutionPolicy Bypass -c "irm https://github.com/Kostassoid/avrox/releases/latest/download/avrox-cli-installer.ps1 | iex"
 ```
 
-Prebuilt binaries are available for Apple Silicon macOS, x86_64 and ARM64
-Linux, and x64 Windows. See the
-[releases page](https://github.com/Kostassoid/avrox/releases) for archives and
-checksums.
+Prebuilt binaries exist for Apple Silicon macOS, x86_64 and ARM64 Linux, and
+x64 Windows; see the [releases page](https://github.com/Kostassoid/avrox/releases)
+for archives and checksums.
 
 ### Usage
 
-The installed command is `avrox-cli`. Every subcommand accepts `--help`.
+The command is `avrox-cli`, and every subcommand accepts `--help`.
 
 ```sh
 avrox-cli generate path/to/schema.avsc --output-file src/gen.rs
@@ -74,93 +69,101 @@ avrox-cli write path/to/new.avro path/to/schema.avsc path/to/records.jsonl
 avrox-cli --help
 ```
 
-The CLI is organized as subcommands: `generate` (code generation),
-`extract-schema` (schema extraction from data files), `read` (record
-exploration) and `write` (record creation).
+The subcommands are `generate` (code generation), `extract-schema` (schema
+extraction), `read` (record exploration) and `write` (record creation).
 
-### Generate code
+### generate
 
-`generate` takes a schema and writes generated code. Its options include
-`--language` (currently `rust`), `--avro-version` (`1.10`, `1.11` or `1.12`,
-the default), `--rust-types`, `--rust-time` and `--rust-derive`. Exactly one of
-the two output options must be given:
+`generate` reads a schema and writes generated code:
 
-- `--output-file <FILE>`: single-file layout — everything in one file,
-  written to the given path;
-- `--output-dir <DIR>`: module layout — target directory is fully dedicated to generated types, allowing for 
-  better readability. Each named type is written to a separate file.
-- `--rust-types avro` (default): generated types rely on the official
-  [`apache-avro`](https://docs.rs/apache-avro) crate — `bytes`/`fixed` use
-  `serde_bytes`, and the `uuid`/`decimal`/`duration` logical types become
-  `apache_avro::Uuid`/`Decimal`/`Duration`. Because `apache_avro::Uuid`
-  serializes as bytes in binary mode, `uuid` over `string` gets generated
-  `serde` adapters that encode and decode it as a UUID string;
-- `--rust-types std`: only standard library types plus types generated into
-  the output (a `Bytes` newtype and one newtype per `fixed` type, with `serde`
+```
+avrox-cli generate <SCHEMA> (--output-file <FILE> | --output-dir <DIR>) [OPTIONS]
+```
+
+Output — exactly one is required:
+
+- `--output-file <FILE>`: single-file layout, with everything written to the
+  given path;
+- `--output-dir <DIR>`: module layout, with a directory dedicated to generated
+  types and one file per named type.
+
+Target:
+
+- `--language <LANG>`: output language, currently only `rust` (default);
+- `--avro-version <VERSION>`: `1.10`, `1.11` or `1.12` (default).
+
+Rust types (`--rust-types`):
+
+- `avro` (default): relies on the official [`apache-avro`](https://docs.rs/apache-avro)
+  crate — `bytes`/`fixed` use `serde_bytes`, and `uuid`/`decimal`/`duration`
+  become `apache_avro::Uuid`/`Decimal`/`Duration`. Because
+  `apache_avro::Uuid` serializes as bytes in binary mode, `uuid` over `string`
+  gets generated `serde` adapters that encode it as a UUID string;
+- `std`: only standard library types plus types generated into the output (a
+  `Bytes` newtype and one newtype per `fixed` type, with `serde`
   implementations that serialize as Avro bytes). Logical types keep their
-  underlying primitives. The generated code needs only `serde` to compile
-  and still round-trips through `apache-avro`.
-- `--rust-time primitives` (default): time-related logical types (`date`,
-  `time-*`, `timestamp-*`, `local-timestamp-*`) keep their underlying
-  integers (`i32`/`i64`), documented on the fields carrying them;
-- `--rust-time std-time`: timestamps become bare `std::time::SystemTime`
-  values and times-of-day become `std::time::Duration` values, with field-level
-  `serde` adapters that encode them as the Avro integers of their logical
-  types; `date` has no standard library representation and stays an `i32`.
-  Needs no extra dependencies. Logical types nested inside arrays or maps
-  still use generated newtypes, because `serde` cannot attach field attributes
-  to collection elements;
-- `--rust-time chrono`: time-related logical types become bare
-  `chrono::NaiveDate`, `chrono::NaiveTime`, `chrono::DateTime<Utc>` and
-  `chrono::NaiveDateTime`, with field-level `serde` adapters that encode them
-  as the Avro integers of their logical types. The consuming crate needs
-  `chrono` 0.4.40 or later with the `serde` feature enabled. Logical types
-  nested inside arrays or maps still use generated newtypes, because `serde`
-  cannot attach field attributes to collection elements.
-- `--rust-derive <DERIVE>` (repeatable, also accepted as `--rust-derives`):
-  adds a derive to generated records, enums and union enums. Common derives
-  can use their short name (`Hash`, `Display`), while derives from other
-  crates should use their fully qualified path (`derive_more::Display`).
-  Derives already emitted by the generator are not added twice.
+  underlying primitives.
+
+Rust time (`--rust-time`):
+
+- `primitives` (default): time-related logical types (`date`, `time-*`,
+  `timestamp-*`, `local-timestamp-*`) keep their underlying integers
+  (`i32`/`i64`), documented on the fields carrying them;
+- `std-time`: timestamps become `std::time::SystemTime` and times-of-day
+  `std::time::Duration`, with field-level `serde` adapters that encode them as
+  the Avro integers of their logical types. `date` has no standard library
+  representation and stays an `i32`. No extra dependencies;
+- `chrono`: time-related logical types become `chrono::NaiveDate`,
+  `chrono::NaiveTime`, `chrono::DateTime<Utc>` and `chrono::NaiveDateTime`,
+  with field-level `serde` adapters that encode them as the Avro integers of
+  their logical types. Requires `chrono` 0.4.40 or later with the `serde`
+  feature.
+
+Rust derives (`--rust-derive <DERIVE>`):
+
+- adds a derive to generated records, enums and union enums; repeatable, also
+  accepted as `--rust-derives`. Use short names for common derives (`Hash`,
+  `Display`) and fully qualified paths for derives from other crates
+  (`derive_more::Display`). Derives the generator already emits are ignored.
 
 #### Generated Rust code
 
-The generated code integrates with the [`apache-avro`](https://docs.rs/apache-avro)
-crate through `serde`:
+Generated code integrates with [`apache-avro`](https://docs.rs/apache-avro)
+through `serde`:
 
 - records become structs, enums become enums;
-- nullable unions (`["null", T]`) become `Option<T>`, other unions become
+- nullable unions (`["null", T]`) become `Option<T>`; other unions become
   generated enums with one newtype variant per branch, in branch order;
-- recursive references in directly nested positions are boxed;
-- logical types are documented on the fields and types carrying them, and
-  time-related ones follow the `--rust-time` setting (see above);
-- `uuid` over `string` uses a generated `serde` adapter in `avro` mode, so it
-  is both typed as `apache_avro::Uuid` and encoded as a UUID string; inside
-  arrays and maps it uses a generated `Uuid` newtype for the same reason time
-  logical types do;
-- `bytes` and `fixed` representations depend on the `--rust-types` mode (see
-  above): `serde_bytes` types in `avro` mode, generated newtypes with
-  byte-oriented `serde` implementations in `std` mode.
+- directly recursive references are boxed;
+- logical types are documented on the fields and types carrying them;
+- in `avro` mode, `uuid` over `string` becomes `apache_avro::Uuid` with a
+  generated `serde` adapter, so it encodes as a UUID string;
+- `bytes` and `fixed` follow `--rust-types`, and time-related logical types
+  follow `--rust-time` (see above).
 
-Both modes round-trip through `apache-avro`'s binary codec; `std` mode
-requires only `serde` (with `derive`) as a direct dependency, `avro` mode
-requires `serde`, `serde_bytes` and `apache-avro`.
+Logical types that need `serde` adapters use generated newtypes when nested
+inside arrays or maps, because `serde` cannot attach field attributes to
+collection elements.
 
-### Extract a schema
+`std` mode needs only `serde` with `derive`; `avro` mode needs `serde`,
+`serde_bytes` and `apache-avro`. Both round-trip through `apache-avro`'s binary
+codec.
+
+### extract-schema
 
 `extract-schema` prints the schema stored in the header of an Avro data file
-(`.avro`) to standard output and nothing else, so it can be redirected or
-piped:
+(`.avro`) to standard output and nothing else, so the result can be redirected
+or piped:
 
 ```sh
 avrox-cli extract-schema path/to/data.avro > schema.avsc
 ```
 
-It stops reading as soon as it has reached the schema, so data files of any
-size work. The output is byte-identical to the schema as stored in the file.
-Non-container files are rejected.
+It stops reading once it reaches the schema, so files of any size work, and the
+output is byte-identical to the stored schema. Non-container files are
+rejected.
 
-### Read records
+### read
 
 `read` prints every record of an Avro data file as JSON, one record per line:
 
@@ -169,19 +172,18 @@ avrox-cli read path/to/data.avro
 avrox-cli read --human-readable path/to/data.avro
 ```
 
-The output is meant mostly for exploration and debugging, so some Avro details are
-flattened: union branches are unwrapped, enums print their symbol, UUIDs print
-as strings, decimals and big decimals print as strings, and bytes and fixed
-values print as arrays of numbers. Time-related logical types print their
-underlying integers by default and durations print as
-`{"months", "days", "millis"}` objects; `--human-readable` renders dates as
-ISO 8601 dates, times and timestamps as ISO 8601 date-times and durations as
-ISO 8601 durations instead.
+The output is meant for exploration and debugging, so some Avro details are
+flattened: union branches are unwrapped, enums print their symbol, UUIDs,
+decimals and big decimals print as strings, and bytes and fixed values print as
+arrays of numbers. Time-related logical types print their underlying integers
+by default, and durations print as `{"months", "days", "millis"}` objects.
+`--human-readable` instead renders dates as ISO 8601 dates, times and
+timestamps as ISO 8601 date-times, and durations as ISO 8601 durations.
 
-### Write records
+### write
 
 `write` creates an Avro data file from JSON records, one record per line. The
-output path and schema path are required; the JSONL input path is optional and
+output and schema paths are required; the JSONL input path is optional and
 standard input is used when it is omitted:
 
 ```sh
@@ -189,16 +191,16 @@ avrox-cli write path/to/new.avro path/to/schema.avsc records.jsonl
 avrox-cli write --human-readable path/to/new.avro path/to/schema.avsc < records.jsonl
 ```
 
-Every record must match the schema. Requirements and defaults are enforced:
-missing fields are filled from the schema default or, for nullable fields,
-with `null`; missing required fields, unknown fields, invalid enum symbols and
-type mismatches fail immediately with the offending line and JSON path. With
-`--human-readable`, dates, times, timestamps and durations are read from the
-same ISO 8601 formats produced by `read --human-readable`.
+Every record must match the schema. Missing fields are filled from the schema
+default or, for nullable fields, with `null`. Missing required fields, unknown
+fields, invalid enum symbols and type mismatches fail immediately with the
+offending line and JSON path. With `--human-readable`, dates, times, timestamps
+and durations are read from the same ISO 8601 formats produced by
+`read --human-readable`.
 
 ## Library
 
-Add the `avrox` crate from crates.io as a dependency:
+Add the `avrox` crate from crates.io:
 
 ```sh
 cargo add avrox
@@ -223,9 +225,9 @@ for file in &files {
 ### Building settings
 
 `Settings` controls the target language, Avro version, output layout and
-language-specific options. `Settings::new()` starts from the defaults, and
-the builder methods return the modified value, so settings can be built in a
-single expression:
+language-specific options. `Settings::new()` starts from the defaults, and the
+builder methods return the modified value, so settings can be built in a single
+expression:
 
 ```rust
 use avrox::{AvroVersion, Layout, RustTime, RustTypes, Settings};
@@ -289,8 +291,8 @@ primitives) produce no files, so `generate` may return an empty list.
 
 ### Generated header
 
-Every generated file starts with a header comment that records the library
-version and the settings used to generate it:
+Every generated file starts with a header comment recording the library version
+and the settings used:
 
 ```rust
 //! Generated by avrox 1.2.0 from an Avro schema. DO NOT EDIT.
@@ -332,29 +334,30 @@ Testing uses three layers:
 
 - unit tests for the parser, naming and generator internals;
 - black-box snapshot tests under `tests/cases`: every case is a directory with
-  a `schema.avsc`, optional `settings.json`, and either an `expected/` directory
-  with the expected generated files or an `error.txt` with the expected error;
+  a `schema.avsc`, an optional `settings.json`, and either an `expected/`
+  directory with the expected generated files or an `error.txt` with the
+  expected error;
 - the snapshot expectations can be regenerated with `AVROX_BLESS=1 cargo test`.
 
 ### Releasing
 
-Releases are built by [dist](https://axodotdev.github.io/cargo-dist), cut
-with [cargo-release](https://github.com/crate-ci/cargo-release) and use
+Releases are built by [dist](https://axodotdev.github.io/cargo-dist), cut with
+[cargo-release](https://github.com/crate-ci/cargo-release) and use
 [git-cliff](https://git-cliff.org) for changelog capture. Prerequisites:
 `cargo install cargo-release` and `git-cliff` on your `PATH`.
 
-1. Keep the `## [Unreleased]` section of `CHANGELOG.md` up to date: write
-   notes by hand, or run `just changelog` to print the commits since the
-   last tag and paste in what you want to include.
+1. Keep the `## [Unreleased]` section of `CHANGELOG.md` up to date: write notes
+   by hand, or run `just changelog` to print the commits since the last tag and
+   paste in what you want to include.
 2. Run `just release 1.1.0` — a dry run; add `--execute` to actually do it.
    This bumps all workspace versions in lockstep, rotates the `Unreleased`
    section into `## [1.1.0] - <date>`, commits, creates the `v1.1.0` tag and
    pushes it.
 3. Pushing the tag triggers `.github/workflows/release.yml`, which builds
    `avrox-cli` for Windows (x86_64), Linux (x86_64 and aarch64) and macOS
-   (aarch64), creates the GitHub Release with the matching changelog entry
-   as its notes, and uploads the archives, shell/PowerShell installers and
-   SHA-256 checksums.
+   (aarch64), creates the GitHub Release with the matching changelog entry as
+   its notes, and uploads the archives, shell/PowerShell installers and SHA-256
+   checksums.
 4. The same release publishes the `avrox` and `avrox-cli` crates to crates.io
    through `.github/workflows/publish-crates.yml`. This requires a
    `CARGO_REGISTRY_TOKEN` repository secret with permission to publish both
