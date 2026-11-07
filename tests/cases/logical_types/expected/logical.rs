@@ -10,6 +10,24 @@
 //! - rust derives: none
 use serde::{Deserialize, Serialize};
 use serde_bytes::ByteArray;
+#[allow(dead_code)]
+mod __avrox_uuid {
+    pub(crate) mod uuid {
+        pub(crate) fn serialize<S: serde::Serializer>(
+            value: &apache_avro::Uuid,
+            serializer: S,
+        ) -> Result<S::Ok, S::Error> {
+            serializer.serialize_str(&value.to_string())
+        }
+        pub(crate) fn deserialize<'de, D: serde::Deserializer<'de>>(
+            deserializer: D,
+        ) -> Result<apache_avro::Uuid, D::Error> {
+            let value = <String as serde::Deserialize>::deserialize(deserializer)?;
+            apache_avro::Uuid::parse_str(&value)
+                .map_err(|error| serde::de::Error::custom(error))
+        }
+    }
+}
 /// Every logical type of Avro 1.12.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Logical {
@@ -40,7 +58,8 @@ pub struct Logical {
     #[serde(rename = "localTimestampNanos")]
     pub local_timestamp_nanos: i64,
     /// Logical type `uuid`: universally unique identifier.
-    pub uuid: String,
+    #[serde(with = "__avrox_uuid::uuid")]
+    pub uuid: apache_avro::Uuid,
     #[serde(rename = "uuidBytes")]
     pub uuid_bytes: apache_avro::Uuid,
     /// Logical type `decimal`: arbitrary-precision signed decimal (precision 4, scale 2).

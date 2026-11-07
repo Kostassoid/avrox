@@ -11,7 +11,7 @@ use crate::{AvroVersion, GeneratedFile, Language, Layout, RustTime, RustTypes, S
 
 use super::model::Model;
 use super::render::Renderer;
-use super::{helpers, naming, time};
+use super::{helpers, naming, time, uuid};
 
 /// Builds the header comment describing the generator version and settings.
 fn header(settings: &Settings) -> Vec<String> {
@@ -108,6 +108,7 @@ pub(super) struct FileContext {
     references: Option<BTreeSet<String>>,
     imports: BTreeSet<Import>,
     time_helpers: BTreeSet<time::Helper>,
+    uuid_helpers: BTreeSet<uuid::Helper>,
 }
 
 impl FileContext {
@@ -118,6 +119,7 @@ impl FileContext {
             references: None,
             imports: BTreeSet::new(),
             time_helpers: BTreeSet::new(),
+            uuid_helpers: BTreeSet::new(),
         }
     }
 
@@ -128,6 +130,7 @@ impl FileContext {
             references: Some(BTreeSet::new()),
             imports: BTreeSet::new(),
             time_helpers: BTreeSet::new(),
+            uuid_helpers: BTreeSet::new(),
         }
     }
 
@@ -138,6 +141,11 @@ impl FileContext {
     /// Records a generated time serde helper referenced by this file.
     pub(super) fn needs_time_helper(&mut self, helper: time::Helper) {
         self.time_helpers.insert(helper);
+    }
+
+    /// Records a generated UUID serde helper referenced by this file.
+    pub(super) fn needs_uuid_helper(&mut self, helper: uuid::Helper) {
+        self.uuid_helpers.insert(helper);
     }
 
     /// Records a generated helper referenced by this file.
@@ -183,6 +191,9 @@ fn render_single_file(
     for wrapper in model.time.used_wrappers(model.document) {
         items.push(time::render(&wrapper));
     }
+    for wrapper in model.uuid.used_wrappers(model.document) {
+        items.push(uuid::render(&wrapper));
+    }
     for named in &model.document.types {
         items.push(renderer.render_named(named, &mut context)?);
     }
@@ -192,6 +203,9 @@ fn render_single_file(
         }
     }
     if let Some(module) = model.time.helper_module(&context.time_helpers) {
+        items.insert(0, module);
+    }
+    if let Some(module) = model.uuid.helper_module(&context.uuid_helpers) {
         items.insert(0, module);
     }
     let imports = imports(&context);
@@ -233,6 +247,17 @@ fn render_module(
             re_exports.push(quote! { pub use time::{#(#idents),*}; });
         }
     }
+    let uuid_wrappers = model.uuid.used_wrappers(model.document);
+    if !uuid_wrappers.is_empty() {
+        let items: Vec<TokenStream> = uuid_wrappers.iter().map(uuid::render).collect();
+        files.push(assemble("uuid.rs".to_owned(), header, &[], &items)?);
+        mod_decls.push(quote! { pub mod uuid; });
+        let idents: Vec<Ident> = uuid_wrappers
+            .iter()
+            .map(|wrapper| naming::make_ident(wrapper.name).0)
+            .collect();
+        re_exports.push(quote! { pub use self::uuid::#(#idents)*; });
+    }
     for named in &model.document.types {
         let rust_name = model.type_names[named.name()].clone();
         let stem = naming::to_snake_case(&named.name().name);
@@ -243,6 +268,9 @@ fn render_module(
         let imports = imports(&context);
         let mut items = Vec::new();
         if let Some(module) = model.time.helper_module(&context.time_helpers) {
+            items.push(module);
+        }
+        if let Some(module) = model.uuid.helper_module(&context.uuid_helpers) {
             items.push(module);
         }
         items.push(item);
@@ -258,7 +286,12 @@ fn render_module(
         }
     }
     let imports = imports(&context);
-    let helper = model.time.helper_module(&context.time_helpers);
+    let time_helper = model.time.helper_module(&context.time_helpers);
+    let uuid_helper = model.uuid.helper_module(&context.uuid_helpers);
+    let helper = quote! {
+        #time_helper
+        #uuid_helper
+    };
     let docs = header_docs(header);
     let tokens = quote! {
         #(#docs)*

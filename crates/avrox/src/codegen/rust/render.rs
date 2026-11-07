@@ -72,7 +72,12 @@ impl<'model, 'document> Renderer<'model, 'document> {
     ) -> Result<TokenStream> {
         let snake = naming::to_snake_case(&field.name);
         let (ident, escaped) = naming::make_ident(&snake);
-        let ty = self.render_type(&field.schema, Some(Node::Type(record.clone())), context)?;
+        let ty = self.render_type(
+            &field.schema,
+            Some(Node::Type(record.clone())),
+            true,
+            context,
+        )?;
         let doc = docs::attributes(field.doc.as_deref(), docs::logical_lines(&field.schema));
         let with = self.serde_with(&field.schema, context);
         let name = &field.name;
@@ -89,14 +94,21 @@ impl<'model, 'document> Renderer<'model, 'document> {
         })
     }
 
-    /// The `serde(with = "...")` attribute a field needs for a time logical
-    /// type, if the current settings render it as a bare domain type.
+    /// The `serde(with = "...")` attribute a field needs for a logical type
+    /// that the current settings render as a bare domain type.
     fn serde_with(&self, schema: &Schema, context: &mut FileContext) -> TokenStream {
-        let Some(with) = self.model.time.serde_with(schema) else {
+        if let Some(with) = self.model.time.serde_with(schema) {
+            if let Some(helper) = with.helper {
+                context.needs_time_helper(helper);
+            }
+            let path = with.path;
+            return quote! { #[serde(with = #path)] };
+        }
+        let Some(with) = self.model.uuid.serde_with(schema) else {
             return quote! {};
         };
         if let Some(helper) = with.helper {
-            context.needs_time_helper(helper);
+            context.needs_uuid_helper(helper);
         }
         let path = with.path;
         quote! { #[serde(with = #path)] }
@@ -173,10 +185,15 @@ impl<'model, 'document> Renderer<'model, 'document> {
         let mut used: HashSet<String> = HashSet::new();
         let mut variants = Vec::with_capacity(union_info.branches.len());
         for branch in &union_info.branches {
-            let display = union::display_name(branch, &self.model.type_names, self.model.time);
+            let display = union::display_name(
+                branch,
+                &self.model.type_names,
+                self.model.time,
+                self.model.uuid,
+            );
             let variant_name = unique_variant_name(&display, &mut used);
             let (variant, _) = naming::make_ident(&variant_name);
-            let ty = self.render_type(branch, Some(Node::Union(id)), context)?;
+            let ty = self.render_type(branch, Some(Node::Union(id)), true, context)?;
             let with = self.serde_with(branch, context);
             variants.push(quote! {
                 #with
@@ -189,6 +206,7 @@ impl<'model, 'document> Renderer<'model, 'document> {
                 &union_info.branches,
                 &self.model.type_names,
                 self.model.time,
+                self.model.uuid,
             )
             .into_iter()
             .map(|name| format!("`{name}`"))
@@ -211,17 +229,16 @@ impl<'model, 'document> Renderer<'model, 'document> {
 
     /// Renders the Rust type for a schema at a position nested inside
     /// `container`, which is `None` in indirection positions such as array
-    /// items and map values.
+    /// items and map values. `direct` records whether the position can carry a
+    /// field-level `serde` attribute.
     fn render_type(
         &self,
         schema: &Schema,
         container: Option<Node>,
+        direct: bool,
         context: &mut FileContext,
     ) -> Result<TokenStream> {
-        if let Some(tokens) =
-            self.decorators
-                .apply(schema, self.model, context, container.is_some())
-        {
+        if let Some(tokens) = self.decorators.apply(schema, self.model, context, direct) {
             return Ok(tokens);
         }
         match schema {
@@ -236,16 +253,16 @@ impl<'model, 'document> Renderer<'model, 'document> {
                 Ok(self.render_named_ref(name, container.as_ref(), context))
             }
             Schema::Array(items) => {
-                let items = self.render_type(items, None, context)?;
+                let items = self.render_type(items, None, false, context)?;
                 Ok(quote!(Vec<#items>))
             }
             Schema::Map(values) => {
                 context.needs(Import::HashMap);
-                let values = self.render_type(values, None, context)?;
+                let values = self.render_type(values, None, false, context)?;
                 Ok(quote!(HashMap<String, #values>))
             }
-            Schema::Union(branches) => self.render_union(branches, container, context),
-            Schema::Logical { base, .. } => self.render_type(base, container, context),
+            Schema::Union(branches) => self.render_union(branches, container, direct, context),
+            Schema::Logical { base, .. } => self.render_type(base, container, direct, context),
             Schema::Bytes => Err(Error::Internal(
                 "bytes schema was not handled by a representation decorator".to_owned(),
             )),
@@ -275,6 +292,7 @@ impl<'model, 'document> Renderer<'model, 'document> {
         &self,
         branches: &[Schema],
         container: Option<Node>,
+        direct: bool,
         context: &mut FileContext,
     ) -> Result<TokenStream> {
         let key = union::key(branches);
@@ -282,9 +300,12 @@ impl<'model, 'document> Renderer<'model, 'document> {
             return Err(Error::Internal(format!("union `{key}` was not registered")));
         };
         match union::rendering(branches) {
-            UnionRendering::Transparent => self.render_type(&branches[0], container, context),
+            UnionRendering::Transparent => {
+                self.render_type(&branches[0], container, direct, context)
+            }
             UnionRendering::Nullable { other } => {
-                let inner = self.render_type(&branches[other], Some(Node::Union(id)), context)?;
+                let inner =
+                    self.render_type(&branches[other], Some(Node::Union(id)), direct, context)?;
                 Ok(quote!(Option<#inner>))
             }
             UnionRendering::Enum => {

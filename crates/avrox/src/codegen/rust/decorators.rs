@@ -13,7 +13,7 @@ use crate::{RustOptions, RustTypes};
 
 use super::emit::{FileContext, Import};
 use super::model::Model;
-use super::{naming, time};
+use super::{naming, time, uuid};
 
 /// An optional, option-specific replacement for a schema's Rust type.
 trait TypeDecorator {
@@ -36,6 +36,9 @@ impl Decorators {
         let inner: Vec<Box<dyn TypeDecorator>> = vec![
             Box::new(TimeDecorator {
                 time: time::Time::new(options.time),
+            }),
+            Box::new(UuidDecorator {
+                uuid: uuid::Uuid::new(options.types),
             }),
             Box::new(RepresentationDecorator {
                 setting: options.types,
@@ -80,6 +83,29 @@ impl TypeDecorator for TimeDecorator {
             return Some(tokens);
         }
         let wrapper = self.time.wrapper_for_position(*kind, false)?;
+        context.reference(wrapper.name);
+        let (ident, _) = naming::make_ident(wrapper.name);
+        Some(quote!(#ident))
+    }
+}
+
+/// Replaces `uuid` over `string` with a type that serializes as a string.
+struct UuidDecorator {
+    uuid: uuid::Uuid,
+}
+
+impl TypeDecorator for UuidDecorator {
+    fn decorate(
+        &self,
+        schema: &Schema,
+        _model: &Model<'_>,
+        context: &mut FileContext,
+        direct: bool,
+    ) -> Option<TokenStream> {
+        if direct && let Some(tokens) = self.uuid.direct_type(schema) {
+            return Some(tokens);
+        }
+        let wrapper = self.uuid.wrapper_for_position(schema, direct)?;
         context.reference(wrapper.name);
         let (ident, _) = naming::make_ident(wrapper.name);
         Some(quote!(#ident))
@@ -143,9 +169,8 @@ impl TypeDecorator for RepresentationDecorator {
 /// The `apache-avro` type a logical type maps to in [`RustTypes::ApacheAvro`],
 /// or `None` when the underlying primitive is used.
 ///
-/// `uuid` is deliberately absent: `apache_avro::Uuid` serializes as bytes in
-/// binary mode, which a `string`-based uuid schema rejects; uuid on `fixed`
-/// is handled by [`RepresentationDecorator::apache_fixed_type`].
+/// `uuid` is handled by [`UuidDecorator`] over `string` and by
+/// [`RepresentationDecorator::apache_fixed_type`] over `fixed`.
 fn apache_logical_type(kind: LogicalType) -> Option<TokenStream> {
     match kind {
         LogicalType::Decimal { .. } | LogicalType::BigDecimal => Some(quote!(apache_avro::Decimal)),

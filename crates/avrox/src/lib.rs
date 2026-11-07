@@ -275,8 +275,10 @@ pub enum RustTypes {
     /// Relies on types from the official `apache-avro` crate: `bytes` and
     /// `fixed` use `serde_bytes`, and the `uuid`, `decimal` and `duration`
     /// logical types become `apache_avro::Uuid`, `apache_avro::Decimal` and
-    /// `apache_avro::Duration`. The generated code requires `apache-avro`,
-    /// `serde` and `serde_bytes` to compile.
+    /// `apache_avro::Duration`. Because `apache_avro::Uuid` serializes as
+    /// bytes in binary mode, `uuid` over `string` gets generated `serde`
+    /// adapters that encode it as a UUID string. The generated code requires
+    /// `apache-avro`, `serde` and `serde_bytes` to compile.
     ApacheAvro,
     /// Uses only standard library types plus types generated into the output
     /// (a `Bytes` newtype and one newtype per `fixed` type, with `serde`

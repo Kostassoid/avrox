@@ -11,12 +11,31 @@
 use serde::{Deserialize, Serialize};
 use serde_bytes::{ByteArray, ByteBuf};
 use std::collections::HashMap;
+#[allow(dead_code)]
+mod __avrox_uuid {
+    pub(crate) mod uuid {
+        pub(crate) fn serialize<S: serde::Serializer>(
+            value: &apache_avro::Uuid,
+            serializer: S,
+        ) -> Result<S::Ok, S::Error> {
+            serializer.serialize_str(&value.to_string())
+        }
+        pub(crate) fn deserialize<'de, D: serde::Deserializer<'de>>(
+            deserializer: D,
+        ) -> Result<apache_avro::Uuid, D::Error> {
+            let value = <String as serde::Deserialize>::deserialize(deserializer)?;
+            apache_avro::Uuid::parse_str(&value)
+                .map_err(|error| serde::de::Error::custom(error))
+        }
+    }
+}
 /// A user profile exercising every Avro feature supported by avrox.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UserProfile {
     /// Stable identifier of the profile, as a UUID string.
     /// Logical type `uuid`: universally unique identifier.
-    pub id: String,
+    #[serde(with = "__avrox_uuid::uuid")]
+    pub id: apache_avro::Uuid,
     /// Identifier of the device the profile was created on, as a 16-byte UUID.
     #[serde(rename = "deviceId")]
     pub device_id: apache_avro::Uuid,

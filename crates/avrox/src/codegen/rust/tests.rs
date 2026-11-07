@@ -294,7 +294,10 @@ const LOGICAL_SCHEMA: &str = r#"{"type": "record", "name": "R", "fields": [
 #[test]
 fn avro_types_use_apache_avro_types() {
     let contents = contents_of(LOGICAL_SCHEMA);
-    assert!(contents.contains("pub uuid_string: String,"));
+    assert!(contents.contains("pub uuid_string: apache_avro::Uuid,"));
+    assert!(contents.contains(r#"#[serde(with = "__avrox_uuid::uuid")]"#));
+    assert!(contents.contains("mod __avrox_uuid {"));
+    assert!(contents.contains("pub(crate) mod uuid {"));
     assert!(contents.contains("pub uuid_fixed: apache_avro::Uuid,"));
     assert!(contents.contains("pub decimal: apache_avro::Decimal,"));
     assert!(contents.contains("pub decimal_fixed: apache_avro::Decimal,"));
@@ -306,6 +309,90 @@ fn avro_types_use_apache_avro_types() {
     assert!(contents.contains("pub type U = ByteArray<16>;"));
     assert!(contents.contains("use serde_bytes::{ByteArray, ByteBuf};"));
     assert!(!contents.contains("use apache_avro"));
+}
+
+#[test]
+fn avro_uuid_strings_use_a_string_serde_adapter() {
+    let contents = contents_of(
+        r#"{"type": "record", "name": "R", "fields": [
+            {"name": "id", "type": {"type": "string", "logicalType": "uuid"}},
+            {"name": "optional", "type": ["null", {
+                "type": "string", "logicalType": "uuid"
+            }]},
+            {"name": "either", "type": [
+                {"type": "string", "logicalType": "uuid"},
+                "int"
+            ]}
+        ]}"#,
+    );
+    assert!(contents.contains("pub id: apache_avro::Uuid,"));
+    assert!(contents.contains(r#"#[serde(with = "__avrox_uuid::uuid")]"#));
+    assert!(contents.contains("pub optional: Option<apache_avro::Uuid>,"));
+    assert!(contents.contains(r#"#[serde(with = "__avrox_uuid::uuid_option")]"#));
+    assert!(contents.contains("pub either: UuidOrInt,"));
+    assert!(contents.contains(r#"#[serde(with = "__avrox_uuid::uuid")]"#));
+    assert!(contents.contains("Uuid(apache_avro::Uuid)"));
+    assert!(contents.contains("pub(crate) mod uuid_option {"));
+}
+
+#[test]
+fn avro_uuid_strings_in_collections_use_wrappers() {
+    let contents = contents_of(
+        r#"{"type": "record", "name": "R", "fields": [
+            {"name": "ids", "type": {"type": "array", "items": {
+                "type": "string", "logicalType": "uuid"
+            }}},
+            {"name": "byName", "type": {"type": "map", "values": {
+                "type": "string", "logicalType": "uuid"
+            }}},
+            {"name": "maybe", "type": {"type": "array", "items": [
+                "null", {"type": "string", "logicalType": "uuid"}
+            ]}}
+        ]}"#,
+    );
+    assert!(contents.contains("pub struct Uuid(pub apache_avro::Uuid);"));
+    assert!(contents.contains("pub ids: Vec<Uuid>,"));
+    assert!(contents.contains("pub by_name: HashMap<String, Uuid>,"));
+    assert!(contents.contains("pub maybe: Vec<Option<Uuid>>,"));
+    assert!(!contents.contains(r#"#[serde(with = "__avrox_uuid::uuid")]"#));
+}
+
+#[test]
+fn avro_uuid_wrappers_work_in_module_layout() {
+    let files = generate_with(
+        r#"{"type": "record", "name": "R", "fields": [
+            {"name": "id", "type": {"type": "string", "logicalType": "uuid"}},
+            {"name": "ids", "type": {"type": "array", "items": {
+                "type": "string", "logicalType": "uuid"
+            }}}
+        ]}"#,
+        Layout::Module,
+        RustOptions::default(),
+    );
+    let paths: Vec<&str> = files.iter().map(|file| file.path.as_str()).collect();
+    assert_eq!(paths, ["mod.rs", "uuid.rs", "r.rs"]);
+    let mod_rs = module_file(&files, "mod.rs");
+    assert!(mod_rs.contains("pub mod uuid;"));
+    assert!(mod_rs.contains("pub use self::uuid::Uuid;"));
+    let record = module_file(&files, "r.rs");
+    assert!(record.contains("use super::Uuid;"));
+    assert!(record.contains("pub id: apache_avro::Uuid,"));
+    assert!(record.contains("pub ids: Vec<Uuid>,"));
+    assert!(record.contains("mod __avrox_uuid {"));
+    let uuid = module_file(&files, "uuid.rs");
+    assert!(uuid.contains("pub struct Uuid(pub apache_avro::Uuid);"));
+}
+
+#[test]
+fn avro_uuid_wrappers_reject_colliding_type_names() {
+    let error = generate_err(
+        r#"{"type": "record", "name": "Uuid", "fields": [
+            {"name": "ids", "type": {"type": "array", "items": {
+                "type": "string", "logicalType": "uuid"
+            }}}
+        ]}"#,
+    );
+    assert!(error.contains("type name `Uuid`"));
 }
 
 #[test]

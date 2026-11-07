@@ -12,7 +12,7 @@ use crate::schema::{Document, FullName, NamedType, Schema};
 use crate::{RustOptions, RustTypes};
 
 use super::union::{UnionInfo, UnionRendering};
-use super::{derives, naming, time, union};
+use super::{derives, naming, time, union, uuid};
 
 /// Names used by the generated code itself; schema types mapping to them are
 /// rejected as unsupported.
@@ -65,6 +65,7 @@ pub(super) struct Model<'a> {
     pub(super) document: &'a Document,
     pub(super) options: RustOptions,
     pub(super) time: time::Time,
+    pub(super) uuid: uuid::Uuid,
     pub(super) derives: Vec<derives::Derive>,
     pub(super) type_names: HashMap<FullName, String>,
     pub(super) unions: Vec<UnionInfo>,
@@ -76,10 +77,12 @@ impl<'a> Model<'a> {
     pub(super) fn new(document: &'a Document, options: RustOptions) -> Result<Self> {
         let derives = derives::parse(&options.derives)?;
         let time = time::Time::new(options.time);
+        let uuid = uuid::Uuid::new(options.types);
         let mut model = Self {
             document,
             options,
             time,
+            uuid,
             derives,
             type_names: HashMap::new(),
             unions: Vec::new(),
@@ -108,6 +111,10 @@ impl<'a> Model<'a> {
                 || (self.options.types == RustTypes::Std && rust_name == "Bytes")
                 || self
                     .time
+                    .reserved_names(self.document)
+                    .contains(&rust_name.as_str())
+                || self
+                    .uuid
                     .reserved_names(self.document)
                     .contains(&rust_name.as_str())
             {
@@ -174,7 +181,8 @@ impl<'a> Model<'a> {
         }
         let name = match union::rendering(branches) {
             UnionRendering::Enum => {
-                let base = union::display_names(branches, &self.type_names, self.time).join("Or");
+                let base = union::display_names(branches, &self.type_names, self.time, self.uuid)
+                    .join("Or");
                 Some(self.unique_name(&base))
             }
             _ => None,

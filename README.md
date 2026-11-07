@@ -25,9 +25,6 @@ Known limitations:
 - schemas whose types map to colliding Rust names across namespaces are
   rejected;
 - Avro protocols (`.avpr`) are not supported;
-- uuid logical types on `string` stay `String` in `avro` mode because
-  `apache_avro::Uuid` serializes as bytes in binary mode, which a string-based
-  uuid schema rejects;
 - `read` and `write` focus on exploration and debugging: union branches are
   flattened, bytes and fixed values use byte arrays, decimal and BigDecimal
   values use strings, and not every detail of Avro's JSON encoding is
@@ -95,7 +92,9 @@ the two output options must be given:
 - `--rust-types avro` (default): generated types rely on the official
   [`apache-avro`](https://docs.rs/apache-avro) crate — `bytes`/`fixed` use
   `serde_bytes`, and the `uuid`/`decimal`/`duration` logical types become
-  `apache_avro::Uuid`/`Decimal`/`Duration`;
+  `apache_avro::Uuid`/`Decimal`/`Duration`. Because `apache_avro::Uuid`
+  serializes as bytes in binary mode, `uuid` over `string` gets generated
+  `serde` adapters that encode and decode it as a UUID string;
 - `--rust-types std`: only standard library types plus types generated into
   the output (a `Bytes` newtype and one newtype per `fixed` type, with `serde`
   implementations that serialize as Avro bytes). Logical types keep their
@@ -135,6 +134,10 @@ crate through `serde`:
 - recursive references in directly nested positions are boxed;
 - logical types are documented on the fields and types carrying them, and
   time-related ones follow the `--rust-time` setting (see above);
+- `uuid` over `string` uses a generated `serde` adapter in `avro` mode, so it
+  is both typed as `apache_avro::Uuid` and encoded as a UUID string; inside
+  arrays and maps it uses a generated `Uuid` newtype for the same reason time
+  logical types do;
 - `bytes` and `fixed` representations depend on the `--rust-types` mode (see
   above): `serde_bytes` types in `avro` mode, generated newtypes with
   byte-oriented `serde` implementations in `std` mode.

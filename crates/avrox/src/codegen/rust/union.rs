@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use crate::schema::{FullName, Schema};
 
 use super::time::Time;
+use super::uuid::Uuid as UuidSupport;
 
 /// A union registered while walking the schema.
 pub(super) struct UnionInfo {
@@ -61,7 +62,11 @@ pub(super) fn display_name(
     schema: &Schema,
     type_names: &HashMap<FullName, String>,
     time: Time,
+    uuid: UuidSupport,
 ) -> String {
+    if let Some(name) = uuid.display_name(schema) {
+        return name.to_owned();
+    }
     match schema {
         Schema::Null => "Null".to_owned(),
         Schema::Boolean => "Boolean".to_owned(),
@@ -77,7 +82,7 @@ pub(super) fn display_name(
         Schema::Union(_) => "Union".to_owned(),
         Schema::Logical { kind, base, .. } => match time.display_name(*kind) {
             Some(name) => name.to_owned(),
-            None => display_name(base, type_names, time),
+            None => display_name(base, type_names, time, uuid),
         },
     }
 }
@@ -86,9 +91,10 @@ pub(super) fn display_names(
     branches: &[Schema],
     type_names: &HashMap<FullName, String>,
     time: Time,
+    uuid: UuidSupport,
 ) -> Vec<String> {
     branches
         .iter()
-        .map(|branch| display_name(branch, type_names, time))
+        .map(|branch| display_name(branch, type_names, time, uuid))
         .collect()
 }

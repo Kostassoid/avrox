@@ -32,6 +32,7 @@ mod naming;
 mod render;
 mod time;
 mod union;
+mod uuid;
 
 #[cfg(test)]
 mod tests;
