@@ -6,7 +6,7 @@
 
 Avro code generator in the spirit of `protoc`: reads `.avsc` schemas and
 produces strongly typed code with serialization boilerplate. The CLI can also
-inspect and create Avro data files.
+inspect and create Avro OCF files.
 
 ## Overview
 
@@ -157,7 +157,7 @@ extra dependencies.
 
 ### extract-schema
 
-`extract-schema` prints the schema stored in the header of an Avro data file
+`extract-schema` prints the schema stored in the header of an Avro OCF file
 (`.avro`) to standard output and nothing else, so the result can be redirected
 or piped:
 
@@ -165,13 +165,11 @@ or piped:
 avrox-cli extract-schema path/to/data.avro > schema.avsc
 ```
 
-It stops reading once it reaches the schema, so files of any size work, and the
-output is byte-identical to the stored schema. Non-container files are
-rejected.
+The output is byte-identical to the stored schema. Non-container files are rejected.
 
 ### read
 
-`read` prints every record of an Avro data file as JSON, one record per line:
+`read` prints every record of an Avro OCF file as JSON, one record per line:
 
 ```sh
 avrox-cli read path/to/data.avro
@@ -188,7 +186,7 @@ timestamps as ISO 8601 date-times, and durations as ISO 8601 durations.
 
 ### write
 
-`write` creates an Avro data file from JSON records, one record per line. The
+`write` creates an Avro OCF file from JSON records, one record per line. The
 output and schema paths are required; the JSONL input path is optional and
 standard input is used when it is omitted:
 
@@ -206,7 +204,7 @@ and durations are read from the same ISO 8601 formats produced by
 
 ## Library
 
-Add the `avrox` crate from crates.io:
+Add the `avrox` crate from crates.io as a dependency:
 
 ```sh
 cargo add avrox
@@ -322,6 +320,44 @@ and the settings used:
 //! - rust derives: Hash, derive_more::Display
 ```
 
+### Using generated models with Apache Avro
+
+Generated records and enums implement `serde::Serialize` and
+`serde::Deserialize`, so they can be used directly with the
+[`apache-avro`](https://docs.rs/apache-avro) crate. A value read from a source (an Avro
+file, a Kafka topic, etc.) is encoded with the writer schema, so before deserializing it into a
+generated model (the reader schema) it must be resolved with
+`apache_avro::types::Value::resolve` against the schema the model was generated
+from:
+
+```rust
+use apache_avro::{Reader, from_value};
+use std::{fs::File, io::BufReader};
+
+let schema_text = std::fs::read_to_string("schema.avsc")?;
+let read_schema = apache_avro::Schema::parse_str(&schema_text)?;
+
+let file = File::open("data.avro")?;
+let reader = Reader::new(BufReader::new(file))?;
+
+for value in reader {
+    let value = value?;
+    // Adapt the value from the file's writer schema to the model's schema.
+    let value = value.resolve(&read_schema)?;
+    let model: MyRecord = from_value(&value)?;
+    // use `model` ...
+}
+```
+
+`Reader` can perform the same resolution internally when given the reader
+schema (`Reader::builder(file).reader_schema(&read_schema)`), but
+`into_deser_iter` does not resolve schemas and panics if the writer and reader
+schemas differ.
+
+Writing works in the opposite direction: serialize the model to a `Value`,
+resolve it against the schema of the target file or a topic. In practice, the writer usually controls the schema so 
+there is no need to resolve it, the generated models can be serialized directly.
+
 ## Contributing
 
 Contributions are welcome. Common commands are available as
@@ -352,7 +388,9 @@ Testing uses three layers:
   a `schema.avsc`, an optional `settings.json`, and either an `expected/`
   directory with the expected generated files or an `error.txt` with the
   expected error;
-- the snapshot expectations can be regenerated with `AVROX_BLESS=1 cargo test`.
+- round-trip verification against `apache-avro` in `examples` directory. The application there reads a sample Avro data file using generated types, then serializes the records back to an in-memory Avro file and verifies that the round trip preserves every value. It's not a part of the CI workflow.
+
+The snapshot expectations can be regenerated with `AVROX_BLESS=1 cargo test`.
 
 ### Releasing
 
@@ -369,8 +407,7 @@ Releases are built by [dist](https://axodotdev.github.io/cargo-dist), cut with
    section into `## [1.1.0] - <date>`, commits, creates the `v1.1.0` tag and
    pushes it.
 3. Pushing the tag triggers `.github/workflows/release.yml`, which builds
-   `avrox-cli` for Windows (x86_64), Linux (x86_64 and aarch64) and macOS
-   (aarch64), creates the GitHub Release with the matching changelog entry as
+   `avrox-cli` for all platforms, creates the GitHub Release with the matching changelog entry as
    its notes, and uploads the archives, shell/PowerShell installers and SHA-256
    checksums.
 4. The same release publishes the `avrox` and `avrox-cli` crates to crates.io
