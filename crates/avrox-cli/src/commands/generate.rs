@@ -3,7 +3,7 @@
 use std::{fs, path::PathBuf};
 
 use anyhow::{Context, Result};
-use avrox::{AvroVersion, Language, Layout, RustOptions, RustTime, RustTypes, Settings};
+use avrox::{AvroVersion, GoOptions, Language, Layout, RustOptions, RustTime, RustTypes, Settings};
 use clap::{ArgGroup, ValueEnum};
 
 /// Generate code from an Avro schema.
@@ -34,6 +34,11 @@ pub(crate) struct Generate {
     #[arg(long, value_enum, default_value = "chrono")]
     rust_time: TimeArg,
 
+    /// Package clause of generated Go code. Defaults to the last component of
+    /// the root type's namespace, or `avro` when it has no namespace.
+    #[arg(long)]
+    go_package: Option<String>,
+
     /// Additional derives to add to generated Rust data types. May be given
     /// multiple times. Bare names like `Hash` and fully qualified paths like
     /// `derive_more::Display` are accepted.
@@ -60,12 +65,15 @@ pub(crate) struct Generate {
 enum LanguageArg {
     #[value(name = "rust")]
     Rust,
+    #[value(name = "go")]
+    Go,
 }
 
 impl From<LanguageArg> for Language {
     fn from(value: LanguageArg) -> Self {
         match value {
             LanguageArg::Rust => Self::Rust,
+            LanguageArg::Go => Self::Go,
         }
     }
 }
@@ -141,7 +149,10 @@ pub(crate) fn run(args: &Generate) -> Result<()> {
                 .types(args.rust_types.clone().into())
                 .time(args.rust_time.clone().into())
                 .derives(args.rust_derives.clone()),
-        );
+        )
+        .go(GoOptions {
+            package: args.go_package.clone(),
+        });
     let files = avrox::Schema::parse(&source, args.avro_version.clone().into())
         .and_then(|schema| avrox::generate(&schema, &settings))
         .with_context(|| format!("failed to generate code from `{}`", args.input.display()))?;

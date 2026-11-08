@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Go code generation with strongly typed records, enums, fixed and unions,
+  standard-library-only Avro binary serialization, logical time mappings,
+  default-aware constructors, shared schema snapshots and a standalone example.
+  The initial Go target supports single-file layout and `--go-package`.
+
 ## [1.6.0] - 2026-11-07
 
 ### Added

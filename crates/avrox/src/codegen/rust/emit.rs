@@ -51,6 +51,7 @@ fn header_docs(header: &[String]) -> Vec<TokenStream> {
 fn language_name(language: Language) -> &'static str {
     match language {
         Language::Rust => "rust",
+        Language::Go => "go",
     }
 }
 

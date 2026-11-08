@@ -24,6 +24,13 @@
 //! enums. Common derives can be given by their short name (`Hash`); derives
 //! from other crates should be fully qualified (`derive_more::Display`).
 //!
+//! [`Language::Go`] generates self-contained Go using only the standard
+//! library. Records, enums, fixed and unions have Avro binary marshal,
+//! unmarshal, reader and writer methods. Nullable unions become pointers and
+//! other unions become validated structs with typed pointer branches. Go
+//! currently supports only [`Layout::SingleFile`]; [`GoOptions::package`]
+//! controls the package clause.
+//!
 //! # Example
 //!
 //! ```
@@ -75,6 +82,8 @@ pub struct Settings {
     pub layout: Layout,
     /// Options for Rust code generation.
     pub rust: RustOptions,
+    /// Options for Go code generation.
+    pub go: GoOptions,
 }
 
 impl Default for Settings {
@@ -85,6 +94,7 @@ impl Default for Settings {
             language: Language::Rust,
             layout: Layout::SingleFile,
             rust: RustOptions::default(),
+            go: GoOptions::default(),
         }
     }
 }
@@ -125,6 +135,20 @@ impl Settings {
         self
     }
 
+    /// Replaces the Go code generation options.
+    #[must_use]
+    pub fn go(mut self, go: GoOptions) -> Self {
+        self.go = go;
+        self
+    }
+
+    /// Sets the package name of the generated Go code.
+    #[must_use]
+    pub fn go_package(mut self, package: impl Into<String>) -> Self {
+        self.go.package = Some(package.into());
+        self
+    }
+
     /// Sets which types the generated Rust code uses.
     #[must_use]
     pub fn rust_types(mut self, types: RustTypes) -> Self {
@@ -159,6 +183,30 @@ impl Settings {
         S: Into<String>,
     {
         self.rust.derives = derives.into_iter().map(Into::into).collect();
+        self
+    }
+}
+
+/// Options for Go code generation.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct GoOptions {
+    /// Package clause of the generated file. When omitted, the last component
+    /// of the root type's namespace is used, or `avro` for a root without a
+    /// namespace.
+    pub package: Option<String>,
+}
+
+impl GoOptions {
+    /// Creates options with the same values as [`GoOptions::default`].
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the package clause of the generated file.
+    #[must_use]
+    pub fn package(mut self, package: impl Into<String>) -> Self {
+        self.package = Some(package.into());
         self
     }
 }
@@ -292,6 +340,8 @@ pub enum RustTypes {
 pub enum Language {
     /// Rust, integrating with `serde` and the `apache-avro` crate.
     Rust,
+    /// Go, using only the standard library and a generated Avro binary codec.
+    Go,
 }
 
 /// How generated code is split into files.
@@ -302,7 +352,7 @@ pub enum Layout {
     SingleFile,
     /// One file per named type, plus a `mod.rs` that declares them, re-exports
     /// them and holds the generated union enums. For Rust the result can be
-    /// used as a module directory directly.
+    /// used as a module directory directly. Go rejects this layout.
     Module,
 }
 

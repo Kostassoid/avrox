@@ -1,0 +1,1 @@
+invalid setting: Go code generation only supports single-file layout; module layout is not supported yet

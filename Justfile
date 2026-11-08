@@ -12,6 +12,11 @@ build:
 test:
     cargo test --workspace
 
+# Run the Go example tests and Avro round trip.
+test-go:
+    go -C examples/go test ./...
+    go -C examples/go run .
+
 # Check formatting without modifying files.
 fmt:
     cargo fmt --all --check
@@ -44,7 +49,7 @@ release +ARGS:
     cargo release "$@"
 
 # Run the same checks as CI.
-ci: fmt clippy build test
+ci: fmt clippy build test test-go
 
 # Remove build artifacts.
 clean:
