@@ -45,3 +45,17 @@ Or pass a different Avro data file:
 ```sh
 cargo run --manifest-path examples/rust/Cargo.toml -- path/to/file.avro
 ```
+
+## Smoke test
+
+The Rust example is also the project's end-to-end smoke test. It regenerates
+the models first and then runs the application, which exits with a non-zero
+status if the data cannot be read or if the round trip does not preserve every
+value:
+
+```sh
+just smoke
+```
+
+CI runs the same two commands on every supported platform, so a generation or
+round-trip regression fails the workflow.

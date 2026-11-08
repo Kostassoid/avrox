@@ -364,8 +364,9 @@ Contributions are welcome. Common commands are available as
 [`just`](https://just.systems) recipes — run `just --list` to see them all:
 
 ```sh
-just ci      # run the same checks as CI (fmt, clippy, build, test)
+just ci      # run the same checks as CI (fmt, clippy, build, test, smoke)
 just test    # run all tests
+just smoke   # regenerate the example models and run the end-to-end example
 just bless   # regenerate the expected outputs under tests/cases
 just run generate path/to/schema.avsc --output-dir src/gen  # run the CLI
 ```
@@ -377,6 +378,9 @@ cargo build --workspace --all-targets
 cargo test --workspace
 cargo clippy --workspace --all-targets
 cargo fmt --all --check
+cargo run -p avrox-cli -- generate examples/user-profile.avsc \
+    --output-file examples/rust/src/generated.rs
+cargo run --manifest-path examples/rust/Cargo.toml
 ```
 
 ### Testing
@@ -388,7 +392,11 @@ Testing uses three layers:
   a `schema.avsc`, an optional `settings.json`, and either an `expected/`
   directory with the expected generated files or an `error.txt` with the
   expected error;
-- round-trip verification against `apache-avro` in `examples` directory. The application there reads a sample Avro data file using generated types, then serializes the records back to an in-memory Avro file and verifies that the round trip preserves every value. It's not a part of the CI workflow.
+- an end-to-end smoke test in the `examples` directory. CI regenerates the
+  models from the sample schema and runs the application there, which reads a
+  sample Avro data file using the generated types, then serializes the records
+  back to an in-memory Avro file and verifies that the round trip preserves
+  every value. Any failure makes the application exit with a non-zero status.
 
 The snapshot expectations can be regenerated with `AVROX_BLESS=1 cargo test`.
 

@@ -43,8 +43,13 @@ changelog:
 release +ARGS:
     cargo release "$@"
 
+# Regenerate the example models and run the example application as a smoke test.
+smoke:
+    cargo run -p avrox-cli -- generate examples/user-profile.avsc --output-file examples/rust/src/generated.rs
+    cargo run --manifest-path examples/rust/Cargo.toml
+
 # Run the same checks as CI.
-ci: fmt clippy build test
+ci: fmt clippy build test smoke
 
 # Remove build artifacts.
 clean:

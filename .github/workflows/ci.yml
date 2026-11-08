@@ -28,3 +28,7 @@ jobs:
       - run: cargo clippy --workspace --all-targets
       - run: cargo build --workspace --all-targets
       - run: cargo test --workspace
+      - name: Generate example models
+        run: cargo run -p avrox-cli -- generate examples/user-profile.avsc --output-file examples/rust/src/generated.rs
+      - name: Run example smoke test
+        run: cargo run --manifest-path examples/rust/Cargo.toml

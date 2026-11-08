@@ -4,6 +4,7 @@ use std::{
     fs::File,
     io::{BufReader, Cursor},
     path::{Path, PathBuf},
+    process::ExitCode,
 };
 
 use apache_avro::{Reader, Writer, types::Value};
@@ -13,7 +14,17 @@ mod generated;
 
 use generated::{NullOrEmailVerificationOrPhoneVerificationOrString as Verification, UserProfile};
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> ExitCode {
+    match run() {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("smoke test failed: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn run() -> Result<(), Box<dyn Error>> {
     let path = env::args().nth(1).map_or_else(
         || Path::new(env!("CARGO_MANIFEST_DIR")).join("../user-profiles.avro"),
         PathBuf::from,
@@ -44,6 +55,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         profiles.push(profile);
     }
     let count = profiles.len();
+    if count == 0 {
+        return Err(format!("no user profiles found in {}", path.display()).into());
+    }
     println!("read {count} user profiles from {}", path.display());
 
     let original: Vec<Value> =
